@@ -1,0 +1,390 @@
+---
+title: "2.Data_intergration"
+output: html_document
+date: "2024-04-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+```
+
+```{r}
+#devtools::install_github("immunogenomics/harmony") 
+#install.packages("harmony")
+```
+
+```{r}
+library(tidyverse)
+library(Seurat)
+library(patchwork)
+library(SeuratData)
+library(patchwork)
+library(sctransform)
+library(harmony)
+set.seed(9999)
+```
+
+```{r}
+
+# Load the datasets after 1st Qc and doublet finder! Columns are not removed yet !
+
+ctl_1_df <- readRDS("SCT/SCT_transf/ctl_1_df_1stfilt_SCT.rds")
+ctl_2_df <- readRDS("SCT/SCT_transf/ctl_2_df_1stfilt_SCT.rds")
+
+int_1_df <- readRDS("SCT/SCT_transf/int_1_df_1stfilt_SCT.rds")
+int_2_df <- readRDS("SCT/SCT_transf/int_2_df_1stfilt_SCT.rds") 
+int_3_df <- readRDS("SCT/SCT_transf/int_3_df_1stfilt_SCT.rds")
+
+end_1_df <- readRDS("SCT/SCT_transf/end_1_df_1stfilt_SCT.rds")
+end_2_df <- readRDS("SCT/SCT_transf/end_2_df_1stfilt_SCT.rds")
+end_3_df <- readRDS("SCT/SCT_transf/end_3_df_1stfilt_SCT.rds")
+
+stages.names <- list("ctl_1_df", "ctl_2_df", "int_1_df","int_2_df", "int_3_df","end_1_df", "end_2_df", "end_3_df")
+
+```
+
+```{r}
+for (name in stages.names) {
+  
+  current_object <- get(name)
+  doublet_col <- colnames(current_object@meta.data)[13]
+  doublet_table <- table(current_object@meta.data[doublet_col])
+  umap_doublets <- DimPlot(current_object,reduction = "umap", group.by = doublet_col)
+  print(name)
+  print(doublet_table)
+  print(umap_doublets)
+  
+  cat(name, "\n\n- Cells:", nrow(current_object@meta.data), "\n- Features:", nrow(current_object), "\n- Meta Cols:", ncol(current_object@meta.data), "\n")
+}
+```
+
+
+## Remove the doublets based on the last column- important to run only once otherwise you keep removing columns! Also checks if the doublet column is present (based on ;doubletFinder!)
+
+```{r}
+for (name in stages.names) {
+  current_object <- get(name)
+  #remove pAnn and 1dt non adj classification
+  current_object@meta.data <- current_object@meta.data[, -c(11, 12), drop = FALSE]
+  
+  # find the "DF.classifications_" column with the singlets,doublets
+  doublet_col <- grep("^DF.classifications_", colnames(current_object@meta.data), value = TRUE)
+  
+  if (length(doublet_col) == 1) {
+    target_col <- doublet_col[1]
+    cells_to_keep <- rownames(current_object@meta.data)[current_object@meta.data[[target_col]] == "Singlet"]
+  
+    current_object <- subset(current_object, cells = cells_to_keep) # we subset the whole seurat based on the singlets
+    
+  } else if (length(doublet_col) == 0) {
+    cat("No 'DF.classifications_' column found in", name, "\n")
+  } else {
+    cat("Multiple 'DF.classifications_' columns found in", name, "please discard and use one\n")
+  }
+  
+  cat(name, "\n- Cells:", nrow(current_object@meta.data), "\n- Features:", nrow(current_object), "\n- Meta Cols:", ncol(current_object@meta.data), "\n")
+  assign(name, current_object)
+}
+```
+
+# work with list to make a merged object later on
+
+```{r}
+#RasV_stages.list <- list(ctl_1_df, ctl_2_df, int_1_df, int_2_df, int_3_df, end_1_df, end_2_df, end_3_df)
+# try the later one
+RasV_stages.list <- list(
+  ctl_1_df = ctl_1_df,
+  ctl_2_df = ctl_2_df,
+  int_1_df = int_1_df,
+  int_2_df = int_2_df,
+  int_3_df = int_3_df,
+  end_1_df = end_1_df,
+  end_2_df = end_2_df,
+  end_3_df = end_3_df
+)
+
+rm(ctl_1_df, ctl_2_df, int_1_df, int_2_df, int_3_df, end_1_df, end_2_df, end_3_df)
+gc()
+```
+
+## SCT function on the new filtered seurat dataframes ## not sure if i should use the whole cell dataset
+
+```{r}
+# process pipeline
+process_object <- function(seurat_object) {
+  seurat_object %>%
+    SCTransform(vars.to.regress = "percent.mt", ncells = ncol(seurat_object), verbose = TRUE) %>%
+    RunPCA(assay = "SCT") %>%
+    RunUMAP(dims = 1:50, assay = "SCT") %>%
+    FindNeighbors(reduction = "pca", dims = 1:50) %>%
+    FindClusters(algorithm = 4, method = "igraph", resolution = 0.07) %>%
+    RunUMAP(dims = 1:50, assay = "SCT") 
+}
+```
+
+## Apply the sct function in each dataset
+
+```{r}
+RasV_stages.list <- lapply(RasV_stages.list, process_object)
+
+```
+
+```{r}
+pdf("UMAP_SCT_post_dblRem.pdf", width = 10, height = 10)
+
+
+for (i in seq_along(RasV_stages.list)) {
+  current_object <- RasV_stages.list[[i]]
+  umap <- DimPlot(current_object, reduction = "umap", label = TRUE) 
+  # Use names(RasV_stages.list)[i] to fetch the name of the current object
+  umap_title <- umap + ggtitle(paste("UMAP_SCT_post_dblRem", names(RasV_stages.list)[i]))
+  print(umap_title)
+}
+
+dev.off()
+
+```
+
+```{r}
+for (i in seq_along(RasV_stages.list)) {
+  current_object <- RasV_stages.list[[i]]
+  name <- names(RasV_stages.list)[i]
+  filepath <- paste0("output/", name, "sct_dblt_filt.rds")
+  saveRDS(current_object, file = filepath)
+}
+```
+
+
+########################### MERGING PART ####################################
+
+```{r}
+# import again the sct doublet cleaned datasets if needed
+ctl_1_df <- readRDS("SCT/doublet_removed/ctl_1_dfsct_dblt_filt.rds")
+ctl_2_df <- readRDS("SCT/doublet_removed/ctl_2_dfsct_dblt_filt.rds")
+
+int_1_df <- readRDS("SCT/doublet_removed/int_1_dfsct_dblt_filt.rds")
+int_2_df <- readRDS("SCT/doublet_removed/int_2_dfsct_dblt_filt.rds")
+int_3_df <- readRDS("SCT/doublet_removed/int_3_dfsct_dblt_filt.rds")
+
+end_1_df <- readRDS("SCT/doublet_removed/end_1_dfsct_dblt_filt.rds")
+end_2_df <- readRDS("SCT/doublet_removed/end_2_dfsct_dblt_filt.rds")
+end_3_df <- readRDS("SCT/doublet_removed/end_3_dfsct_dblt_filt.rds")
+
+RasV_stages.list <- list(
+  ctl_1_df = ctl_1_df,
+  ctl_2_df = ctl_2_df,
+  int_1_df = int_1_df,
+  int_2_df = int_2_df,
+  int_3_df = int_3_df,
+  end_1_df = end_1_df,
+  end_2_df = end_2_df,
+  end_3_df = end_3_df
+)
+
+
+
+```
+
+```{r}
+rm(ctl_1_df, ctl_2_df, int_1_df, int_2_df, int_3_df, end_1_df, end_2_df, end_3_df)
+gc()
+```
+
+
+```{r}
+# Add new column as a single identifier for each dataset that we have by cobining replicate number and condition named batch
+for (i in seq_along(RasV_stages.list)) {
+
+  if ("replicate" %in% colnames(RasV_stages.list[[i]]@meta.data)) {
+    replicate_info <- RasV_stages.list[[i]]@meta.data$replicate
+  } else {
+    replicate_info <- "NA"
+  }
+  
+  # we assume condition column always exists (if we use my Qc pipeline)
+  condition_info <- RasV_stages.list[[i]]@meta.data$condition
+
+  # new id column 'batch'
+  RasV_stages.list[[i]]@meta.data$batch <- paste(condition_info, replicate_info, sep = "_")
+
+}
+```
+
+########### Use this only if you dont SCT the global object!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+```{r}
+
+integ_features <- SelectIntegrationFeatures(RasV_stages.list, nfeatures = 3000)
+```
+
+## Merge the objects into 1
+
+
+# rename cell ids
+
+```{r}
+# rename cells, base d on the batch identifier, so we dont have doublicates when we merge
+for (i in seq_along(RasV_stages.list)){
+  RasV_stages.list[[i]] <- RenameCells(RasV_stages.list[[i]], add.cell.id = unique(RasV_stages.list[[i]]@meta.data$batch))
+}
+```
+
+# merge seurat objects
+
+```{r}
+## some names seems to be doublicated across the objects so in previous part i remake the id
+RasV_merged <- merge(
+  x = RasV_stages.list[[1]],               # The first object
+  y = RasV_stages.list[-1],            # A vector of additional Seurat objects to merge , merged object seems to be a bit larger but maybe merge add more information
+  project = "NASH_HCC",
+  merge.data = TRUE
+)
+DefaultAssay(RasV_merged) <- "SCT" #important if we want to change the default option of the preprocessing steps
+```
+
+# A ) workflow of process seurat global object if needed, i probably dont need THIS!!!!!!!!
+
+```{r}
+# normalize and PCA
+#VariableFeatures(RasV_merged[["SCT"]]) <- rownames(RasV_merged[["SCT"]]@scale.data)
+RasV_merged <-  SCTransform(RasV_merged, vars.to.regress = "percent.mt", verbose = FALSE)##!!!!!!!!!!!! change the number of cells to 3000-default in the normal run!!!!!!!!!!!!!!
+RasV_merged <-  RunPCA(RasV_merged, assay = "SCT")
+RasV_merged <-  RunUMAP(RasV_merged, dims = 1:50, assay = "SCT")
+
+```
+### B) Continue with the non global transformation just with individual SCT merged objects and look for batch effects
+
+```{r}
+VariableFeatures(RasV_merged) <- integ_features
+
+# Calculate PCs using manually set variable features
+RasV_merged <- RunPCA(RasV_merged, assay = "SCT", npcs = 50)
+RasV_merged <- RunUMAP(RasV_merged,dims = 1:50, assay = "SCT" )
+DimPlot(RasV_merged,reduction = "umap", group.by = "batch", shuffle = TRUE)
+```
+
+
+```{r}
+# save the merged file in case the programm crashes again
+saveRDS(RasV_merged, file = "SCT/merged_individualy_processed.rds")
+```
+
+
+## HERE we run harmony embedding (batch correction of pca)
+
+
+```{r}
+RasV_merged <- readRDS("SCT/processed_merged.rds")
+
+RasV_merged <- RunHarmony(RasV_merged, group.by.vars = "batch")  # harmony uses the PCA embeddings of the previous normalization , use :c("batch", "condition"), just dataset id-batch performs betetr on clustering together replicates and make conditions more distinct
+RasV_merged <- RunUMAP(RasV_merged, reduction = "harmony", dims = 1:50, assay = "SCT", seed.use= 9999)
+#p1 <- DimPlot(RasV_merged, reduction = "umap", group.by = "condition", shuffle = TRUE)
+p2 <- DimPlot(RasV_merged, reduction = "umap", group.by = "batch", shuffle = TRUE)
+p2
+```
+## Change cluster resolutions if i want
+
+```{r}
+RasV_merged <- FindNeighbors(RasV_merged, reduction = "harmony", dims = 1:50) 
+RasV_merged <- FindClusters(RasV_merged, algorithm = 4, method = "igraph", resolution = c(0.06, 0.1, 0.08) )
+RasV_merged <- RunUMAP(RasV_merged, reduction = "harmony", dims = 1:50, assay = "SCT", seed.use= 9999)
+
+
+p4 <- DimPlot(RasV_merged, reduction = "umap", group.by = "SCT_snn_res.0.06", label = TRUE)
+p4
+ggsave("SCT/Individ_procc_Harmony.pdf", p4)
+```
+
+```{r}
+######## Small density plot for exploring counts (here is per condition) #########
+
+conditions <- unique(RasV_merged@meta.data$condition)
+
+
+df_sct_counts <- data.frame()
+
+
+for (cond in conditions) {
+
+  cells_in_condition <- WhichCells(RasV_merged, expression = condition == cond)
+  sct_data <- GetAssayData(RasV_merged, assay = "SCT", slot = "data")[, cells_in_condition]
+  total_sct_counts <- Matrix::colSums(sct_data)
+  
+
+  temp_df <- data.frame(counts = total_sct_counts, Assay = "SCT", Condition = cond)
+  df_sct_counts <- rbind(df_sct_counts, temp_df)
+}
+
+
+ggplot(df_sct_counts, aes(x = counts, fill = Condition)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Distribution of Total Counts per Cell by Condition",
+       x = "Total Counts per Cell",
+       y = "Density") +
+  scale_fill_brewer(palette = "Set1") +
+  theme_minimal()
+```
+
+## plot to get an idea of the cluster and the counts
+```{r}
+
+p5 <- FeaturePlot(object = RasV_merged, features = "nCount_RNA")
+p6 <- FeaturePlot(object = RasV_merged, features = "nFeature_RNA")
+
+p5/p6
+```
+
+## Clean the columns from metadata that we dont need anymore
+
+```{r}
+
+# remove the columns i dont want from the final df
+columns_to_remove <- grepl("^DF\\.|^pANN", names(RasV_merged@meta.data))
+RasV_merged@meta.data <- RasV_merged@meta.data[, !columns_to_remove]
+
+#### We can join the RNA layers or keep them seperate##########
+#RasV_merged[["RNA"]] <- JoinLayers(RasV_merged[["RNA"]], layers = "^data",new = "data")
+
+head(RasV_merged@meta.data)
+```
+
+
+## maybe split the assay data maybe not
+
+```{r}
+# # Setting assay data after merging
+# RasV_merged <- RasV_merged %>%
+#   SetAssayData(assay = "SCT", slot = "data", function(x) {
+#   # Check if 'batch' column is available
+#   if("batch" %in% colnames(x@meta.data)) {
+#     split(RasV_merged[["SCT"]], f = x@meta.data$batch)
+#   } else {
+#     stop("Batch column not found in meta.data after merging")
+#   }
+# })
+```
+
+## Change cluster resolutions if i want and save final version of integration
+
+```{r}
+# save final version
+saveRDS(RasV_merged,"SCT/harmony_integrated_individ.rds" )
+#RasV_merged <- readRDS("SCT/integrated_merged.rds" )
+
+```
+
+## seurat_cluster changes everytime i run the fund clusters but the previous resolutions are save in other columns
+
+
+
+
+
+# Use ScVI  : https://docs.scvi-tools.org/en/1.0.0/tutorials/notebooks/scvi_in_R.html
+
+```{r}
+
+
+
+```
+
+# Use seurats anchor method
+

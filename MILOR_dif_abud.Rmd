@@ -1,0 +1,83 @@
+---
+title: "dif_abudance"
+output: html_document
+date: "2024-04-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## https://www.bioconductor.org/packages/release/bioc/vignettes/miloR/inst/doc/milo_demo.html
+
+```{r}
+## Milo is available from Bioconductor (preferred stable installation)
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("miloR")
+
+## Install development version
+devtools::install_github("MarioniLab/miloR", ref="devel") 
+```
+
+```{r}
+library(Seurat)
+library(patchwork)
+set.seed(9999)
+library(miloR)
+library(SingleCellExperiment)
+library(scater)
+library(dplyr)
+```
+
+```{r}
+object <- readRDS("SCT/intgr_indiv_SCT_harmony/data/annotated_intgr.rds")
+rasv <- as.SingleCellExperiment(object)
+rasv_milo <- Milo(rasv)
+rm(rasv)
+```
+
+```{r}
+rasv_milo <- buildGraph(rasv_milo, k = 10, d = 30)
+rasv_milo <- makeNhoods(rasv_milo, prop = 0.1, k = 10, d=30, refined = TRUE)
+plotNhoodSizeHist(rasv_milo)
+```
+
+```{r}
+rasv_milo <- countCells(rasv_milo, meta.data = data.frame(colData(rasv)), sample="batch")
+```
+
+```{r}
+rasv_design <- data.frame(colData(rasv_milo))[,c("batch", "condition")]
+rasv_design <- distinct(rasv_design)
+
+rasv_design
+```
+
+```{r}
+rasv_milo <- calcNhoodDistance(rasv_milo, d=30)
+```
+
+```{r}
+da_results <- testNhoods(rasv_milo, design = ~ Condition, design.df = rasv_design)
+```
+
+```{r}
+da_results %>%
+  arrange(- SpatialFDR) %>%
+  head()
+```
+
+```{r}
+rasv_milo <- buildNhoodGraph(rasv_milo)
+```
+
+```{r}
+plotUMAP(rasv_milo) + plotNhoodGraphDA(rasv_milo, da_results, alpha=0.05) +
+plot_layout(guides="collect")
+```
+
+
+
+

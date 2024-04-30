@@ -1,0 +1,416 @@
+---
+title: "Sc_Analysis_after_Qc_and_doublet"
+author: "theodoros foskolos"
+date: "2024-03-27"
+output: html_document
+---
+
+## Libraries
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE, fig.show = 'hide', results = 'hide')
+```
+
+library(Seurat)
+
+```{r}
+library(tidyverse)
+library(Seurat)
+library(patchwork)
+library(presto)
+library(DoubletFinder)
+library(sctransform)
+library(harmony)
+library(dittoSeq)
+#devtools::install_github("GreenleafLab/ArchR", ref="master", repos = BiocManager::repositories())
+library(ArchR)
+library(ggpubr)
+library(magrittr)
+library(RColorBrewer)
+#ArchR::installExtraPackages()
+set.seed(9999)
+
+#library(Azimuth)
+
+```
+
+### mouse atlas: <https://github.com/ggjlab/scMCA> or Manual annotation or anchors or R
+
+## input the merged integrated processed dataset
+
+```{r}
+#Sc_filtered<- readRDS("\SCT\intgr_indiv_SCT\data\")
+Sc_filtered <- readRDS("SCT/intgr_indiv_SCT_harmony/data/annotated_intgr.rds")
+#Sc_filtered$seurat_clusters <- RasV_merged$SCT_snn_res.0.06 #add here the one that you want as main cluster 
+#DefaultAssay(object = Sc_filtered) <- "RNA"
+```
+
+## Using the SCT assay- DEG TOP CELL MARKERS
+
+```{r}
+data(Sc_filtered)
+Sc_filtered <- Seurat::UpdateSeuratObject(Sc_filtered)
+
+# here we find markers via presto by DEG of 1 cluster vs all the others. Important to use the resolution (clustering we want)
+### !!!!!!! seurat clusters always get the last resolution from findClusters!!! so use that or the specific resolution you want to find markers!!!!!!###############
+
+dif_analysis <- wilcoxauc(Sc_filtered, seurat_assay = "SCT","SCT_snn_res.0.06")
+
+```
+
+### Seems i need to join the RNA layers( i have one layer per experiment/ repli), ALSO SCT seems to remove some genes that may exist in less than 5 cells (vst = 5 default)
+
+## Upregulated markers
+
+```{r}
+# set filtering params
+top_genes <- top_markers(dif_analysis, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+
+top_genes <- top_genes[, sort(names(top_genes))]
+write.csv(top_genes, "SCT/intgr_indiv_SCT/Cell_Markers_res_0_6.csv", row.names = FALSE)
+```
+
+## Extra resolutions if needed
+
+```{r}
+# Sc_filtered <- FindClusters(Sc_filtered, algorithm = 4, method = "igraph", resolution = 0.3 )
+# Sc_filtered <- RunUMAP(Sc_filtered, reduction = "harmony", dims = 1:50, assay = "SCT", seed.use= 9999)
+# 
+# p<- DimPlot(Sc_filtered, reduction = "umap", label = T, group.by = "SCT_snn_res.0.08", alpha = 0.14)
+# 
+# p
+# ggsave("conditions_harmony_indivproc_res0_12c.pdf", p)
+saveRDS(Sc_filtered,"SCT/harmony_integrated_individ.rds")
+```
+
+```{r}
+Sc_subset <- subset(Sc_filtered, subset = batch %in% c("end_1", "end_2", "end_3"))
+
+# Create a UMAP plot for the subsetted data
+p4 <- DimPlot(Sc_subset, reduction = "umap", shuffle = TRUE, group.by = "batch", alpha = 0.1)
+p4
+
+Sc_subset <- SCTransform(Sc_subset, vars.to.regress = "percent.mt")
+Sc_subset <- RunPCA(SCT_sub, assay = "SCT")
+Sc_subset <- RunUMAP(Sc_subset, dims = 1:50, assay = "SCT")
+DimPlot(Sc_subset, reduction = "umap", shuffle = TRUE, group.by = "batch", alpha = 0.1)
+
+```
+
+## Manual annotation of the cell types based on diff expression done for markers
+
+```{r}
+# manual identification through the DEG
+# last annotation is for res: 0.08 - 0.1 seems better
+cluster_to_celltype <- c( "1" = "EC",
+                          "2" = "T",
+                          "3" = "B",
+                          "4" = "M/MC",
+                          "5" = "NK/T",
+                          "6" = "HEP1/C",
+                          "7" = "plasm/?",
+                          "8" = "Gran",
+                          "9" = "pDCs",
+                          "10" = "HEP2/CC"
+                          )
+
+```
+
+# Pass the cell names of the manual identification to the cell_type column depending the clustering resolution we want
+
+```{r}
+Sc_filtered@meta.data$cell_type <- cluster_to_celltype[as.character(Sc_filtered@meta.data$SCT_snn_res.0.06)]
+
+p3<- DimPlot(Sc_filtered, reduction = "umap", label = T, group.by = "SCT_snn_res.0.06", alpha = 0.1)
+
+cell_types <- levels(factor(Sc_filtered$cell_type))
+col.ls <- ArchRPalettes[[4]][1:length(cell_types)]
+names(col.ls) <- cell_types
+
+p4 <- DimPlot(Sc_filtered, reduction = "umap", shuffle = T, group.by = "cell_type", alpha= 0.1, label = T, cols = col.ls )
+p4
+saveRDS(Sc_filtered,"SCT/intgr_indiv_SCT_harmony/data/annotated_intgr.rds" )
+```
+
+## PLOTTING DISTRIVUTIONS
+
+```{r}
+
+stacked <- dittoBarPlot(
+            object = Sc_filtered,
+            var = "celltype_wide",
+            group.by = "condition",
+            x.reorder= c(1,3,2),
+            #var.labels.reorder = c(1,12,9,8,11,10,5,4,2,3,6,7),
+            main = "                                  Cell Types Per Condition",
+            legend.title = "Cell Type"
+            )
+
+stacked
+
+ggsave("SCT/cell_type_conditions_stackedXUE_indiv.pdf", stacked, width = 10, height = 8)
+```
+
+```{r}
+
+#Sc_filtered$cell_type <- Sc_filtered$
+
+#Sc_filtered <- readRDS("SCT/annotated_intgr_res0_08.rds")
+metadata <- Sc_filtered@meta.data
+
+
+# look Better how to do these calculations on paper: also see the ggbarplot
+# percentages per dataset of each celltype
+
+percentage_data <- metadata %>%
+  group_by(batch, cell_type,condition) %>%
+  summarise(total_cells = n(), .groups = 'drop') %>%
+  group_by(batch) %>%
+  mutate(percentage = total_cells / sum(total_cells) * 100) %>%
+  ungroup()
+
+# calculate SD and mean
+
+cell_perc <- percentage_data %>%
+  group_by(condition, cell_type) %>%
+  summarise(mean_percentage = mean(percentage),
+            sd_percentage = sd(percentage),
+            .groups = 'drop') %>%
+  mutate(cell_type = as.factor(cell_type))
+
+# order them descending
+cell_perc <- cell_perc %>%
+  group_by(cell_type) %>%
+  mutate(avg_percentage = mean(mean_percentage)) %>%
+  ungroup() %>%
+  mutate(cell_type = reorder(cell_type, -avg_percentage)) # - for descending 
+
+
+cell_types <- sort(unique(cell_perc$cell_type))
+col.ls <- ArchRPalettes[1:length(cell_types)]
+names(col.ls) <- cell_types
+
+
+cell_types <- levels(factor(cell_perc$cell_type))
+
+# error bars
+
+error_bars <- cell_perc %>%
+  arrange(condition, desc(cell_type)) %>%
+  group_by(condition) %>%
+  mutate(cumulative_mean = cumsum(mean_percentage)) %>%
+  ungroup()
+
+cell_perc <- cell_perc %>%
+  mutate(condition = factor(condition, levels = c("ctl", "int", "end")))
+```
+
+## Stacked bar plot
+
+```{r}
+
+col.ls <- ArchRPalettes[[4]][1:length(cell_types)] ## change the first number in archR to change palletes
+names(col.ls) <- cell_types
+
+
+p <- ggplot(cell_perc, aes(x = condition, y = mean_percentage, fill = cell_type)) +
+  geom_bar(stat = 'identity', position = 'stack') +
+  geom_errorbar(
+    data = error_bars,
+    aes(x = condition, ymin = cumulative_mean - sd_percentage, ymax = cumulative_mean + sd_percentage, group = cell_type),
+    width = 0.3,
+    position = position_dodge(0.2)
+  ) +
+  scale_fill_manual(values = col.ls) +
+  labs(y = "Average Percentage", x = "Condition", fill = "Cell Type") +
+  theme_minimal()
+
+ggsave("SCT/cell_type_manual_0_08.pdf", p, width = 10, height = 8)
+p
+```
+
+## Separate bar plots per cell type
+
+```{r}
+
+
+# plot all cell types per condition
+p1 <- ggplot(cell_perc, aes(x = condition, y = mean_percentage, fill = condition)) +
+      geom_bar(stat = 'identity', position = position_dodge(), width = 0.7) +
+      geom_errorbar(aes(ymin = mean_percentage - sd_percentage, ymax = mean_percentage + sd_percentage),
+      width = 0.2, position = position_dodge(0.7)) +
+      facet_wrap(~cell_type) +
+      labs(x = "Condition", y = "Percentage", title = "Cell Type per stage") +
+      theme_minimal()
+p1
+ggsave("output/cell_type_anch.pdf", p1, width = 10, height = 8)
+```
+
+## B) Label Transfer - from human annotated file
+
+## I make some subsets for time (remove it after) I need to first preprocess my refference data-set. Need to preprocess it in the same way i did my query data-set.
+
+```{r}
+# load the refference dataset
+load("data/annotated_file/Xue.subsampled_sco.RData")
+
+
+#Sc_filtered  <-readRDS("SCT/annotated_intgr_res_0_1.rds")
+```
+
+```{r}
+subset_sample <- rownames(Xue.subsampled_sco@meta.data)[Xue.subsampled_sco@meta.data$Cancer_type == "HCC"]
+
+ref_annot <- subset(Xue.subsampled_sco, cells = subset_sample)
+```
+
+```{r}
+nCount_values <- ref_annot@meta.data$nCount_RNA
+
+#  upper and lower quantile limits
+upper_lim_nCount <- quantile(nCount_values, 0.99)
+lower_lim_nCount <- quantile(nCount_values, 0.01)
+
+ref_annot <- subset(ref_annot, subset = nFeature_RNA > 400 & 
+                                            percent.mt < 10 & 
+                                            nCount_RNA > lower_lim_nCount & 
+                                            nCount_RNA < upper_lim_nCount)
+```
+
+## Get less cells if we want faster calculations ( not recommended )
+
+```{r}
+num_cells_to_sample <- ceiling(length(ref_annot@meta.data$Cancer_type) / 2)
+
+random_cells <- sample(rownames(ref_annot@meta.data), num_cells_to_sample)
+
+# 3. Subset ref_annot with the selected cells
+ref_annot <- subset(ref_annot, cells = random_cells)
+```
+
+# Anchor the 2 datasets
+
+```{r}
+DefaultAssay(ref_annot) <- 'SCT'
+DefaultAssay(Sc_filtered) <- 'SCT'
+
+Sc_filtered <- PrepSCTFindMarkers(Sc_filtered)
+anchors <- FindTransferAnchors(reference = ref_annot, query = Sc_filtered, dims = 1:50, reference.assay = "SCT", query.assay = "SCT", reduction = "pcaproject" )
+```
+
+```{r}
+predicted.labels <- TransferData(
+  anchorset = anchors,
+  refdata = ref_annot@meta.data$clusters,
+  dims = 1:50
+)
+```
+
+```{r}
+target.data <- AddMetaData(object = Sc_filtered, metadata = predicted.labels$predicted.id, col.name = "predicted_label")
+```
+
+```{r}
+#we can set a threshold here
+hist(predicted.labels$prediction.score.max)
+```
+
+```{r}
+Sc_filtered <- AddMetaData(object = Sc_filtered, metadata = predicted.labels$predicted.id, col.name = "anchor_pred")
+```
+
+```{r}
+# if i want to makje broader groups ( eg. CD4_dkjbvjsbv -> CD4)
+Sc_filtered$celltype_wide <- gsub("_.*", "", Sc_filtered$anchor_pred)
+```
+
+```{r}
+
+umapp <- DimPlot(Sc_filtered, reduction = "umap", group.by = "celltype_wide", label = T, alpha = 0.1)
+umapp
+
+ggsave("SCT/Xue_annot.pdf", dpi= 300)
+```
+
+## if i want to find more DEG from top markers like negative etc.
+
+```{r}
+# Add the LOGFC value next to the top_markers
+append_logFC_by_celltype <- function(cell_type_column, cell_type_name, diff_exp_data) {
+  # Filter the differential expression data for the current cell type
+  diff_exp_subset <- diff_exp_data[diff_exp_data$group == cell_type_name, ]
+  
+  sapply(cell_type_column, function(gene_name) {
+    matched_logFC <- diff_exp_subset[diff_exp_subset$feature == gene_name, "logFC"]
+    if (length(matched_logFC) != 0) {
+      return(paste0(gene_name, " (", matched_logFC, ")"))
+    } else {
+      return(gene_name)
+    }
+  })
+}
+
+
+final_topgenes <- as.data.frame(mapply(append_logFC_by_celltype, top_genes, colnames(top_genes), MoreArgs = list(diff_exp_data = dif_analysis)))
+
+```
+
+```{r}
+# Top 40 positive
+top_positive <- dif_analysis %>%
+  group_by(group) %>%
+  filter(padj > 0.05) %>%
+  slice_max(order_by = logFC, n = 50)
+
+# Top 40 negative
+top_negative <- dif_analysis %>%
+  group_by(group) %>%
+  filter(padj > 0.05) %>% # put more filters if needed
+  slice_min(order_by = logFC, n = 50)
+
+```
+
+```{r}
+pos <- top_positive %>%
+  select(group, feature) %>% # Select only the necessary columns
+  #pivot_wider(names_from = group, values_from = feature)
+
+```
+
+```{r}
+top_genes <- dif_analysis_filt %>%
+  group_by(celltype) %>%
+  arrange(desc(logFC)) %>%
+  top_n(20, wt = logFC) %>%
+  ungroup() %>%
+  bind_rows(
+    dif_analysis_filt %>%
+    group_by(celltype) %>%
+    arrange(logFC) %>%
+    top_n(20, wt = -logFC) %>%
+    ungroup()
+  )
+
+print(top_genes)
+```
+
+```{r}
+features_to_plot <- intersect(rownames(Sc_filtered), top_genes$feature)
+
+# Visualize top genes using FeaturePlot or DoHeatmap
+# For FeaturePlot
+FeaturePlot(Sc_filtered, features = features_to_plot)
+
+# For DoHeatmap
+DoHeatmap(Sc_filtered, features = features_to_plot)
+```
+
+```{r}
+df_wide <- dif_analysis_filt %>%
+  pivot_wider(
+    names_from = celltype,  # this is your cell type column
+    values_from = feature,  # this is your differentially expressed genes column
+    values_fill = list(feature = NA)  # How to fill in missing cases
+  )
+df_wide
+```

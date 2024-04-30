@@ -1,0 +1,62 @@
+---
+title: "scVI-integration"
+output: html_document
+date: "2024-04-22"
+---
+
+```{r}
+
+
+# install.packages("reticulate")
+# install.packages("cowplot")
+# devtools::install_github("cellgeni/sceasy")
+#devtools::install_github("scverse/anndataR")
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install(c("LoomExperiment", "SingleCellExperiment"))
+
+```
+
+
+
+```{r}
+library(anndataR)
+library(Seurat)
+library(reticulate)
+library(sceasy)
+library(SeuratWrappers)
+library(SeuratDisk)
+library(anndata)
+#use_condaenv('singlecell')
+#reticulate::import('loompy')
+```
+
+## Seurat to Anndata
+
+```{r}
+merged <-readRDS("SCT/intgr_indiv_SCT/data/merged_individualy_SCTprocessed.rds")
+
+## need to convert the assay class from assay5 to assay (v3)
+merged[["RNA"]] <- as(object = merged[["RNA"]], Class = "Assay")
+DefaultAssay(merged) <- "RNA"
+merged <- DietSeurat(merged, assays = "RNA", layers = "counts")
+
+SaveH5Seurat(merged, filename = "RasV.h5Seurat", overwrite = T, verbose = T)
+
+
+```
+
+## Anndata to Seurat 
+
+```{r}
+# sceasy::convertFormat(adata, from="anndata", to="seurat",
+#                        outFile='scvi_annotated.rds')
+# 
+# adata <- read_h5ad("h5ad_data/RasV_ingr_scvi.h5ad")
+
+Convert("RasV_ingr_scvi.h5ad", dest = "h5seurat", overwrite = TRUE)
+
+rasv <- LoadH5Seurat("RasV_ingr_scvi.h5seurat")
+```
+

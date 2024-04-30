@@ -1,0 +1,461 @@
+```{r}
+
+```
+
+---
+title: "sc_analysis"
+format: html
+editor: visual
+---
+
+## Libraries
+
+## list the object and save environment image + Rdata objects
+
+```{r}
+#devtools::install_github('satijalab/seurat-data')
+```
+
+```{r}
+# remotes::install_github('satijalab/azimuth', ref = 'master')
+```
+
+```{r}
+# remotes::install_github('satijalab/seurat-wrappers')
+# devtools::install_github("immunogenomics/presto")
+# remotes::install_github('chris-mcginnis-ucsf/DoubletFinder')
+# reticulate::py_install(packages ='leidenalg')
+```
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE, fig.show = 'hide', results = 'hide')
+SHOW_ANSWERS=FALSE
+```
+
+```{r}
+library(tidyverse)
+library(Seurat)
+library(patchwork)
+library(DoubletFinder)
+library(leidenAlg)
+set.seed(9999)
+```
+
+## LOAD data and create SEURAT object, perform Qc (seperately to each sample)
+
+```{r}
+Ctl_1.data <- Read10X(data.dir = "data/Raw/7332_S1_GEX")
+Ctl_2.data <- Read10X(data.dir = "data/Raw//7332_S2_GEX")
+
+Intermediate_1.data <- Read10X(data.dir = "data/Raw/7329_S1_GEX") 
+Intermediate_2.data <- Read10X(data.dir = "data/Raw/7329_S2_GEX") 
+Intermediate_3.data <- Read10X(data.dir = "data/Raw/7329_S3_GEX")
+
+Endpoint_1.data <- Read10X(data.dir = "data/Raw/7257_S1_GEX") 
+Endpoint_2.data <- Read10X(data.dir = "data/Raw/7265_S1_GEX") 
+Endpoint_3.data <- Read10X(data.dir = "data/Raw/7273_S1_GEX")
+
+ctl_1_df <- CreateSeuratObject(counts = Ctl_1.data, project = "NASH_HCC_RASV", min.cells = 3, min.features = 200)
+ctl_1_df[["condition"]] <- "ctl"
+ctl_1_df[["replicate"]] <- "1"
+
+ctl_2_df <- CreateSeuratObject(counts = Ctl_2.data, project = "NASH_HCC_RASV", min.cells = 3, min.features = 200)
+ctl_2_df[["condition"]] <- "ctl"
+ctl_2_df[["replicate"]] <- "2"
+
+
+int_1_df <- CreateSeuratObject(counts = Intermediate_1.data, project = "NASH_HCC_RASV", min.cells = 3, min.features = 200)
+int_1_df[["condition"]] <- "int"
+int_1_df[["replicate"]] <- "1"
+
+int_2_df <- CreateSeuratObject(counts = Intermediate_2.data, project = "NASH_HCC_RASV", min.cells = 3, min.features = 200)
+int_2_df[["condition"]] <- "int"
+int_2_df[["replicate"]] <- "2"
+
+int_3_df <- CreateSeuratObject(counts = Intermediate_3.data, project = "NASH_HCC_RASV", min.cells = 3, min.features = 200)
+int_3_df[["condition"]] <- "int"
+int_3_df[["replicate"]] <- "3"
+
+end_1_df <- CreateSeuratObject(counts = Endpoint_1.data, project = "NASH_HCC_RASV", min.cells = 3, min.features = 200)
+end_1_df[["condition"]] <- "end"
+end_1_df[["replicate"]] <- "1"
+
+end_2_df <- CreateSeuratObject(counts = Endpoint_2.data, project = "NASH_HCC_RASV", min.cells = 3, min.features = 200)
+end_2_df[["condition"]] <- "end"
+end_2_df[["replicate"]] <- "2"
+
+end_3_df <- CreateSeuratObject(counts = Endpoint_3.data, project = "NASH_HCC_RASV", min.cells = 3, min.features = 200)
+end_3_df[["condition"]] <- "end"
+end_3_df[["replicate"]] <- "3"
+
+RasV_stages.list <- c("ctl_1_df", "ctl_2_df", "int_1_df","int_2_df", "int_3_df","end_1_df", "end_2_df", "end_3_df")
+
+for (name in RasV_stages.list) {
+  current_df <- get(name)
+  cat(name, "- Cells:", nrow(current_df@meta.data), "- Features(genes):", nrow(current_df), "Cols:", ncol(current_df@meta.data), "\n")
+}
+```
+
+```{r}
+# Remove objects .data as we dont use them downstream
+rm(Ctl_1.data, Ctl_2.data, Intermediate_1.data, Intermediate_2.data, Intermediate_3.data, Endpoint_1.data,Endpoint_2.data, Endpoint_3.data)
+```
+
+```{r}
+#We calculate mitochondrial QC metrics with the PercentageFeatureSet() function, which calculates the percentage of counts originating from a set of features
+#We use the set of all genes starting with MT- as a set of mitochondrial genes for humans and mt- for mice
+
+
+for (name in RasV_stages.list) {
+
+  if (exists(name)) {
+    current_object <- get(name)
+    
+    current_object[["percent.mt"]] <- PercentageFeatureSet(current_object, pattern = "^mt-")
+    
+    assign(name, current_object)
+  } else {
+    cat("The object named", name, "does not exist in the current environment.\n")
+  }
+  
+}
+
+```
+
+```{r}
+# options(scipen = 999)
+# for (object_name in RasV_stages.list) {
+# 
+#   current_object <- get(object_name)
+#   
+#   p1 <- VlnPlot(current_object, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, layer = "counts")
+#   print(p1) 
+# 
+#   p2 <- FeatureScatter(current_object, feature1 = "nCount_RNA", feature2 = "percent.mt")
+#   print(p2) 
+#   
+# 
+#   p3 <- FeatureScatter(current_object, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+#   print(p3) 
+# 
+#   file_name1 <- paste0("output/Qc/_vlnplot_",object_name,".png")
+#   
+#   file_name2 <- paste0("output/Qc/_count_mt_",object_name,".png")
+#   
+#   file_name3 <- paste0("output/Qc/_count_featu_",object_name,".png")
+#   
+#   ggsave(file_name1, plot = p1, width = 10, height = 6)
+#   ggsave(file_name2, plot = p2, width = 10, height = 6)
+#   ggsave(file_name3, plot = p3, width = 10, height = 6)
+# }
+
+```
+
+## Qc filteringundefined # this is a test to check quartiles (dont use yet, just observe the quartiles)
+
+```{r}
+for (object_name in RasV_stages.list) {
+  current_object <- get(object_name)
+  nCount_values <- current_object@meta.data$nCount_RNA
+
+  # Upper limit quantile
+  upper_lim_nCount <- quantile(nCount_values, 0.99)
+  
+  # Lower limit quantile
+  lower_lim_nCount <- quantile(nCount_values, 0.01)
+  
+  
+  
+  
+
+  cat("\nThresholds for", object_name, ":\n")
+  cat("nCounts_RNA upper bound:", upper_lim_nCount, "\n")
+  cat("nCounts_RNA lower bound:", lower_lim_nCount, "\n")
+}
+```
+
+
+
+```{r}
+# in case i would want to filter out some outliers  and mitochondrial cells, genes with low counts (upper limit on counts based the 99% upper limit, i could work with quartiles)
+for (object_name in RasV_stages.list) {
+  current_object <- get(object_name)
+  nCount_values <- current_object@meta.data$nCount_RNA
+  
+  #  upper and lower quantile limits
+  upper_lim_nCount <- quantile(nCount_values, 0.99)
+  lower_lim_nCount <- quantile(nCount_values, 0.01)
+  
+  filtered_object <- subset(current_object, subset = nFeature_RNA > 400 & 
+                                              percent.mt < 10 & 
+                                              nCount_RNA > lower_lim_nCount & 
+                                              nCount_RNA < upper_lim_nCount)
+  
+  # Print the thresholds for current object
+  cat("\nThresholds for", object_name, ":\n")
+  cat("nCounts_RNA upper bound:", upper_lim_nCount, "\n")
+  cat("nCounts_RNA lower bound:", lower_lim_nCount, "\n")
+  
+  assign(object_name, filtered_object)
+}  
+```
+
+
+```{r}
+
+# for (object_name in RasV_stages.list) {
+#   current_object <- get(object_name)
+#   nCount_values <- current_object@meta.data$nCount_RNA
+#   hist(current_object$nCount_RNA,  main = paste("Histogram of" ,object_name ))
+#   print(nrow(current_object@meta.data))
+# }
+```
+## Norlamization manualy
+
+```{r}
+# # Normalization with old / manual method
+# # Default : Sc_filtered <- NormalizeData(Sc_filtered)
+# #Args: object, normalz methods: LogNorm-> log1p, CLR(centeredlogratio), RC(relativecounts, no log)
+
+# Sc_filtered <- NormalizeData(Sc_filtered, normalization.method = "LogNormalize", scale.factor = 10000,verbose = FALSE)
+# #Identification of highly variable features (feature selection)
+# Sc_filtered <- FindVariableFeatures(Sc_filtered, selection.method = "vst", nfeatures = 2000)
+# # Identify the 10 most highly variable genes
+# top10 <- head(VariableFeatures(Sc_filtered), 10)
+# # plot variable features without labels
+# plot1 <- VariableFeaturePlot(Sc_filtered)
+# # Add labels to the top 10 most variable features
+# plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE) # repel is to avoid overlap of the labels
+# plot1 / plot2 # from patchwork
+# # We need to Scale our data (centering,scaling) before any dimensionality reduction 
+# # mean expression across cells turns 0 and variance 1
+# # By default, only variable features are scaled
+# all.genes <- rownames(Sc_filtered)
+# Sc_filtered <- ScaleData(Sc_filtered, features = all.genes,vars.to.regress = "percent.mt")
+# Sc_filtered <- RunPCA(Sc_filtered, features = VariableFeatures(object = Sc_filtered))
+# ElbowPlot(Sc_filtered, ndims = 50, reduction = "pca") # default ndims is 20 
+
+# cluster with LeidenKNN
+# Sc_filtered <- FindNeighbors(Sc_filtered, dims = 1:40)# maybe raise the number and see diff
+# Sc_filtered <- FindClusters(Sc_filtered, resolution = 0.1, algorithm = 4) #c(0.1, 0.3, 0.5, 0.7) 4 for leiden algorithm
+
+# Sc_filtered <- RunUMAP(Sc_filtered, dims = 1:40)
+# # note that you can set `label = TRUE` or use the LabelClusters function to help label
+# # individual clusters
+# DimPlot(Sc_filtered, reduction = "umap", label = TRUE)
+# # Look at cluster IDs of the first 5 cells
+# head(Idents(Sc_filtered), 5)
+```
+
+## Classic normalization
+
+```{r}
+# ## classic Normalization seems to outperfom the SCT : https://www.nature.com/articles/s41592-023-01814-1
+# for (name in RasV_stages.list) {
+#   
+#   current_object <- get(name)
+#   current_object <- NormalizeData(current_object, normalization.method = "LogNormalize", scale.factor = 10000,verbose = FALSE)
+#   current_object <- FindVariableFeatures(current_object, selection.method = "vst", nfeatures = 2000)
+#   all.genes <- rownames(current_object)
+#   current_object <- ScaleData(current_object,vars.to.regress = "percent.mt", features = all.genes)
+#   current_object <- RunPCA(current_object, features = VariableFeatures(object = current_object),assay = "RNA") # by default PCA uses Variable features normally.SCT though has 3000.
+#   current_object <- RunUMAP(current_object, dims = 1:50, assay = "RNA")
+#   #p <- ElbowPlot(current_object, ndims = 50, reduction = "pca") # default ndims is 20 
+#   #print(p) 
+#   assign(name, current_object)
+# }  
+
+```
+
+
+## preprocessing with SCT-pipeline thought better better for finding group specific cells
+
+```{r}
+for (name in RasV_stages.list) {
+
+  current_object <- get(name)
+
+  current_object <- SCTransform(current_object, vars.to.regress = "percent.mt", verbose = TRUE)
+  #ncells = 5000 is the default i could add more so with all is ncells =ncol(end_1_df)
+  current_object <- RunPCA(current_object, assay= "SCT")
+
+  assign(name, current_object)
+}
+for (name in RasV_stages.list) {
+
+  current_object <- get(name)
+  current_object <- FindNeighbors(current_object, reduction = "pca", dims = 1:50)
+  current_object <- FindClusters(current_object, algorithm = 4, method = "igraph" , resolution = 0.08) # i could add different resolutions and chose the best one
+  current_object <- RunUMAP(current_object, dims = 1:50, assay = "SCT")
+
+  assign(name, current_object)
+}
+```
+
+
+## find NN and cluster for normalization on RNA assay when using log1p
+
+```{r}
+# for (name in RasV_stages.list) {
+#   
+#   current_object <- get(name)
+#   current_object <- FindNeighbors(current_object, reduction = "pca", dims = 1:50)
+#   current_object <- FindClusters(current_object, algorithm = 4, method = "igraph" , resolution = 0.08) # i could add different resolutions and chose the best one
+#   
+#   assign(name, current_object)
+# }
+```
+
+# save + print umaps
+```{r}
+# pdf("UMAP_Log1p_Plots.pdf", width = 10, height = 8)
+# for (name in RasV_stages.list) {
+#   current_object <- get(name)
+#   umap <- DimPlot(current_object, reduction = "umap", label = TRUE) 
+#   umap_title <- umap + ggtitle(paste("UMAP_log1p", name)) # change the name if u use SCT
+#   
+#   print(umap_title)
+# }
+# 
+# dev.off()
+```
+
+
+```{r}
+# for (name in RasV_stages.list) {
+#   current_object <- get(name)
+#   dir_path <- "Log_trans/"
+#   if (!dir.exists(dir_path)) {
+#     dir.create(dir_path)
+#   }
+#   filepath <- paste0(dir_path, name, "_1stfilt_log1p.rds")
+#   saveRDS(current_object, file = filepath)
+# }
+
+```
+
+## Doublet Removal ( previous steps needed first)-
+
+```{r}
+# # run this chunk if not run the previous steps
+# ctl_1_df <- readRDS("Log_trans/ctl_1_df_1stfilt_log1p.rds")
+# ctl_2_df <- readRDS("Log_trans/ctl_2_df_1stfilt_log1p.rds")
+# 
+# int_1_df <- readRDS("Log_trans/int_1_df_1stfilt_log1p.rds")
+# int_2_df <- readRDS("Log_trans/int_2_df_1stfilt_log1p.rds")
+# int_3_df <- readRDS("Log_trans/int_3_df_1stfilt_log1p.rds")
+# 
+# end_1_df <- readRDS("Log_trans/end_1_df_1stfilt_log1p.rds")
+# end_2_df <- readRDS("Log_trans/end_2_df_1stfilt_log1p.rds")
+# end_3_df <- readRDS("Log_trans/end_3_df_1stfilt_log1p.rds")
+# RasV_stages.list <- c("ctl_1_df", "ctl_2_df", "int_1_df","int_2_df", "int_3_df","end_1_df", "end_2_df", "end_3_df")
+```
+
+## run param sweep and doublet finder either with sct to true or false
+
+```{r}
+  # Calculate the expected rate for doublets based on :
+#https://kb.10xgenomics.com/hc/en-us/articles/360001378811-What-is-the-maximum-number-of-cells-that-can-be-profiled
+gc()
+multiplet_data <- data.frame(
+  Cells_Recovered = c(500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000),
+  Multiplet_Rate = c(0.4, 0.8, 1.6, 2.4, 3.2, 4.0, 4.8, 5.6, 6.4, 7.2, 8.0)
+)
+model <- lm(Multiplet_Rate ~ Cells_Recovered, data = multiplet_data)
+
+#pK Identification (no ground truth)-artificial doublets
+for (name in RasV_stages.list) {
+  current_object <- get(name)
+  print(name)
+  sweep.list <- paramSweep(current_object, PCs= 1:50, sct = TRUE) ###!!!!!!!!!!! CHANGE THSI IF YOU RUN SCT also when run doublet finder!!!!!!!!!!!!#######
+  sweep.stats <- summarizeSweep(sweep.list, GT = FALSE)
+  bcmvn <- find.pK(sweep.stats)
+  
+  # retrieve the best pk based on highest BCmetric
+  pK <- bcmvn %>%
+  filter(BCmetric == max(BCmetric)) %>%
+  select(pK) %>%
+  pull() %>%
+  as.character() %>%
+  as.numeric()
+  
+  # # Predict the Multiplet Rate (%) for the cells recovered from the experiment with simple linear regression (is you plot the multiplet data from 10x is linear untill 10000 cells)
+  mult_rate <- (predict(model, newdata = data.frame(Cells_Recovered = ncol(current_object))))/100
+  # print(mult_rate)
+
+  ## Homotypic Doublet Proportion Estimate
+  annotations <- current_object@meta.data$seurat_clusters
+  homotypic.prop <- modelHomotypic(annotations)
+  current_object@meta.data$ClusteringResults
+  nExp_poi <- round(mult_rate*ncol(current_object))  ## Assuming multiplet% doublet formation rate
+  nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))  
+  
+  ## important!!!!: of for any reason i change the columns before, change the columns that you fetch for the pANN and the singlet column
+  current_object <- doubletFinder(current_object, PCs = 1:50, pN = 0.25, pK = pK, nExp = nExp_poi, reuse.pANN = FALSE, sct = TRUE ) ######## CHANGE IF YOU RUN SCT BEFORE!!!!!!!!!!!!######
+  # select column name in reuse.pan
+  current_object <- doubletFinder(current_object, PCs = 1:50, pN = 0.25, pK = pK, nExp = nExp_poi.adj, reuse.pANN = colnames(current_object@meta.data)[11], sct = TRUE) 
+  
+  assign(name, current_object)
+ 
+}
+  
+```
+
+```{r}
+# columns_to_remove <- c("SCT_snn_res.0.1")
+# 
+# for (name in RasV_stages.list) {
+#   # Retrieve the Seurat object by name
+#   current_object <- get(name)
+#   # Check and remove columns if they exist in metadata
+#   existing_columns <- intersect(colnames(current_object@meta.data), columns_to_remove)
+#   if (length(existing_columns) > 0) {
+#     current_object@meta.data <- current_object@meta.data[, !(colnames(current_object@meta.data) %in% existing_columns)]
+#     assign(name, current_object)
+#   }
+# }
+
+```
+
+
+```{r}
+# # visualize the doublets
+# # look at the column with the nExp_poi.adj (last column)
+# for (name in RasV_stages.list) {
+#   current_object <- get(name)
+#   doublet_col <- colnames(current_object@meta.data)[13]
+#   doublet_table <- table(current_object@meta.data[doublet_col])
+#   umap_doublets <- DimPlot(current_object,reduction = "umap", group.by = doublet_col)
+#   
+#   print(name)
+#   print(doublet_table)
+#   print(umap_doublets)
+#   filename <- paste0("UMAP_Log1p_doublets", name, ".png") 
+# 
+#   ggsave(filename, plot = umap_doublets, width = 10, height = 8, dpi = 300)
+# }
+```
+
+## If i want to remove the doublets from now, I saw how to remove them also the pan column,1st classification  in data intergration script
+
+```{r}
+# for (name in RasV_stages.list) {
+#   current_object <- get(name)
+#   current_object <- subset(current_object, subset = doublet == "Singlet")
+  
+```
+
+```{r}
+for (name in RasV_stages.list) {
+  current_object <- get(name)
+  dir_path <- "SCT_transf/"
+  if (!dir.exists(dir_path)) {
+    dir.create(dir_path)
+  }
+  filepath <- paste0(dir_path, name, "_1stfilt_SCT.rds")
+  saveRDS(current_object, file = filepath)
+}
+```
+
+
+
