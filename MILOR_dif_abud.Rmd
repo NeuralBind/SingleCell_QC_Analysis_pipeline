@@ -8,17 +8,17 @@ date: "2024-04-29"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## https://www.bioconductor.org/packages/release/bioc/vignettes/miloR/inst/doc/milo_demo.html
+## <https://www.bioconductor.org/packages/release/bioc/vignettes/miloR/inst/doc/milo_demo.html>
 
 ```{r}
 ## Milo is available from Bioconductor (preferred stable installation)
-if (!requireNamespace("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
-
-BiocManager::install("miloR")
-
-## Install development version
-devtools::install_github("MarioniLab/miloR", ref="devel") 
+#if (!requireNamespace("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# 
+# BiocManager::install("miloR")
+# 
+# ## Install development version
+# devtools::install_github("MarioniLab/miloR", ref="devel") 
 ```
 
 ```{r}
@@ -31,53 +31,150 @@ library(scater)
 library(dplyr)
 ```
 
+## HARMONY INTGR DATASET
+
 ```{r}
 object <- readRDS("SCT/intgr_indiv_SCT_harmony/data/annotated_intgr.rds")
 rasv <- as.SingleCellExperiment(object)
-rasv_milo <- Milo(rasv)
-rm(rasv)
+rasv_milo <- Milo(rasv) #turn to milo obj
+rm(object)
 ```
 
+## Input of milo could be either raw or log-normilized counts for the dge testing
+
+## Here i use harmony as input but based on this : it wasnt tested before :<https://github.com/MarioniLab/miloDE/issues/29>
+
+My concern however will lie with how Harmony might confuse real biological differences between replicates from the same condition with the batch effect, and this difference will be overlaid on top of the other in the embedding which might lead to misleading FPs (you detect some genes to be DE whereas they are actually more reference-specific, subtle within-CT genes)
+
+# The miloguys seems to use mnn corrected pca??
+
+#Shift in Peak: The peak of the distribution has shifted to around 50 cells per neighborhood
+
 ```{r}
-rasv_milo <- buildGraph(rasv_milo, k = 10, d = 30)
-rasv_milo <- makeNhoods(rasv_milo, prop = 0.1, k = 10, d=30, refined = TRUE)
+rasv_milo <- buildGraph(rasv_milo, k = 35, d = 50, reduced.dim = "HARMONY")
+rasv_milo <- makeNhoods(rasv_milo, prop = 0.3, k = 35, d=50, refined = TRUE)
 plotNhoodSizeHist(rasv_milo)
 ```
+
+##Counting cells in neighbourhoods This adds to the Milo object a n \times m matrix, where n is the number of neighbourhoods and m is the number of experimental samples. Values indicate the number of cells from each sample counted in a neighbourhood. This count matrix will be used for DA testing.
 
 ```{r}
 rasv_milo <- countCells(rasv_milo, meta.data = data.frame(colData(rasv)), sample="batch")
 ```
 
 ```{r}
+head(nhoodCounts(rasv_milo))
+```
+
+```{r}
 rasv_design <- data.frame(colData(rasv_milo))[,c("batch", "condition")]
 rasv_design <- distinct(rasv_design)
+rownames(rasv_design) <- rasv_design$batch
 
-rasv_design
+## Reorder rownames to match columns of nhoodCounts(milo)
+rasv_design <- rasv_design[colnames(nhoodCounts(rasv_milo)), , drop=FALSE]
+
+table(rasv_design$condition)
+```
+```{r}
+# Filter for CTL vs INT
+rasv_design_ctl_int <- rasv_design[rasv_design$condition %in% c("ctl", "int"), ]
+
+# Filter for INT vs END
+rasv_design_int_end <- rasv_design[rasv_design$condition %in% c("int", "end"), ]
+
+# Filter for CTL vs END
+rasv_design_ctl_end <- rasv_design[rasv_design$condition %in% c("ctl", "end"), ]
 ```
 
-```{r}
-rasv_milo <- calcNhoodDistance(rasv_milo, d=30)
-```
+
+## Milo uses an adaptation of the Spatial FDR correction introduced by cydar, which accounts for the overlap between neighbourhoods. Specifically, each hypothesis test P-value is weighted by the reciprocal of the kth nearest neighbour distance. To use this statistic we first need to store the distances between nearest neighbors in the Milo object
 
 ```{r}
-da_results <- testNhoods(rasv_milo, design = ~ Condition, design.df = rasv_design)
+rasv_milo <- calcNhoodDistance(rasv_milo, d=50, reduced.dim = "HARMONY", use.assay = "logcounts") # use assay
 ```
 
+### Using TMM normalisation
+
+## Performing spatial FDR correction withk-distance weighting
+
 ```{r}
-da_results %>%
+da_results_ctl_int <- testNhoods(rasv_milo, design = ~ condition, design.df = rasv_design_ctl_int)
+da_results_int_end <- testNhoods(rasv_milo, design = ~ condition, design.df = rasv_design_int_end)
+da_results_ctl_end <- testNhoods(rasv_milo, design = ~ condition, design.df = rasv_design_ctl_end)
+```
+
+
+# Control vs Intermediate
+```{r}
+da_results_ctl_int %>%
   arrange(- SpatialFDR) %>%
-  head()
+  head() 
 ```
 
+Intermediate vs End
+```{r}
+da_results_ctl_int %>%
+  arrange(- SpatialFDR) %>%
+  head() 
+
+```
+
+Ctl vs End
+```{r}
+da_results_ctl_end %>%
+  arrange(- SpatialFDR) %>%
+  head() 
+```
 ```{r}
 rasv_milo <- buildNhoodGraph(rasv_milo)
 ```
 
 ```{r}
-plotUMAP(rasv_milo) + plotNhoodGraphDA(rasv_milo, da_results, alpha=0.05) +
-plot_layout(guides="collect")
+p1 <- plotUMAP(rasv_milo, colour_by="cell_type") + plotNhoodGraphDA(rasv_milo, da_results_ctl_int, alpha=0.5) +
+      plot_layout(guides="auto" )
+
+p2 <- plotUMAP(rasv_milo, colour_by="cell_type") + plotNhoodGraphDA(rasv_milo, da_results_int_end, alpha=0.5) +
+      plot_layout(guides="auto" )
+
+p3 <- plotUMAP(rasv_milo, colour_by="cell_type") + plotNhoodGraphDA(rasv_milo, da_results_ctl_end, alpha=0.1) +
+      plot_layout(guides="auto" )
+```
+
+This calculates a Fold-change and corrected P-value for each neighbourhood, which indicates whether there is significant differential abundance between condition
+
+```{r}
+ggsave("ctlVSint.pdf", plot = p1, width = 7, height = 5, dpi = 300)
+p1
+```
+
+```{r}
+ggsave("intVSend.pdf", plot = p2, width = 7, height = 5, dpi = 300)
+p2
+```
+
+
+```{r}
+ggsave("ctlVSend.pdf", plot = p3, width = 7, height = 5, dpi = 300)
+p3
 ```
 
 
 
+## Using the SCVI DATASET
+
+```{r}
+object <- readRDS("SCT/")
+rasv <- as.SingleCellExperiment(object)
+rasv_milo <- Milo(rasv) #turn to milo obj
+rm(object)
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
 
