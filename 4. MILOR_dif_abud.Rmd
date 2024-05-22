@@ -1,0 +1,222 @@
+---
+title: "dif_abudance"
+output: html_document
+date: "2024-04-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## <https://www.bioconductor.org/packages/release/bioc/vignettes/miloR/inst/doc/milo_demo.html>
+
+```{r}
+## Milo is available from Bioconductor (preferred stable installation)
+#if (!requireNamespace("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# 
+# BiocManager::install("miloR")
+# 
+# ## Install development version
+# devtools::install_github("MarioniLab/miloR", ref="devel") 
+```
+
+```{r}
+library(Seurat)
+library(patchwork)
+set.seed(9999)
+library(miloR)
+library(SingleCellExperiment)
+library(scater)
+library(dplyr)
+```
+
+## HARMONY INTGR DATASET
+
+```{r}
+object <- readRDS("SCT/intgr_indiv_SCT_harmony/data/annotated_intgr.rds")
+rasv <- as.SingleCellExperiment(object)
+rasv_milo <- Milo(rasv) #turn to milo obj
+rm(object)
+```
+
+## Input of milo could be either raw or log-normilized counts for the dge testing
+
+## Here i use harmony as input but based on this : it wasnt tested before :<https://github.com/MarioniLab/miloDE/issues/29>
+
+My concern however will lie with how Harmony might confuse real biological differences between replicates from the same condition with the batch effect, and this difference will be overlaid on top of the other in the embedding which might lead to misleading FPs (you detect some genes to be DE whereas they are actually more reference-specific, subtle within-CT genes)
+
+# The miloguys seems to use mnn corrected pca??
+
+#Shift in Peak: The peak of the distribution has shifted to around 50 cells per neighborhood
+
+```{r}
+rasv_milo <- buildGraph(rasv_milo, k = 35, d = 50, reduced.dim = "HARMONY")
+rasv_milo <- makeNhoods(rasv_milo, prop = 0.3, k = 35, d=50, refined = TRUE)
+plotNhoodSizeHist(rasv_milo)
+```
+
+##Counting cells in neighbourhoods This adds to the Milo object a n \times m matrix, where n is the number of neighbourhoods and m is the number of experimental samples. Values indicate the number of cells from each sample counted in a neighbourhood. This count matrix will be used for DA testing.
+
+```{r}
+rasv_milo <- countCells(rasv_milo, meta.data = data.frame(colData(rasv)), sample="batch")
+```
+
+```{r}
+head(nhoodCounts(rasv_milo))
+```
+
+```{r}
+rasv_design <- data.frame(colData(rasv_milo))[,c("batch", "condition")]
+rasv_design <- distinct(rasv_design)
+rownames(rasv_design) <- rasv_design$batch
+
+## reorder rownames to match columns of nhoodCounts(milo)
+rasv_design <- rasv_design[colnames(nhoodCounts(rasv_milo)), , drop=FALSE]
+
+table(rasv_design$condition)
+```
+
+```{r}
+# filter for the comparisons
+rasv_design_ctl_int <- rasv_design[rasv_design$condition %in% c("ctl", "int"), ]
+rasv_design_int_end <- rasv_design[rasv_design$condition %in% c("int", "end"), ]
+rasv_design_ctl_end <- rasv_design[rasv_design$condition %in% c("ctl", "end"), ]
+
+#rasv_design_int_end$condition <- factor(rasv_design_int_end$condition, levels = c("int", "end"))
+#contrasts <- makeContrasts(int - end, levels = )
+```
+
+
+## Milo uses an adaptation of the Spatial FDR correction introduced by cydar, which accounts for the overlap between neighbourhoods. Specifically, each hypothesis test P-value is weighted by the reciprocal of the kth nearest neighbour distance. To use this statistic we first need to store the distances between nearest neighbors in the Milo object
+
+```{r}
+rasv_milo <- calcNhoodDistance(rasv_milo, d=50, reduced.dim = "HARMONY", use.assay = "logcounts") # use assay
+```
+
+### Using TMM normalisation
+
+## Performing spatial FDR correction withk-distance weighting
+
+```{r}
+da_results_ctl_int <- testNhoods(rasv_milo, design = ~ condition, design.df = rasv_design_ctl_int, fdr.weighting="graph-overlap")
+da_results_int_end <- testNhoods(rasv_milo, design = ~  condition, design.df = rasv_design_int_end, fdr.weighting="graph-overlap")
+da_results_ctl_end <- testNhoods(rasv_milo, design = ~ condition, design.df = rasv_design_ctl_end, fdr.weighting="graph-overlap")
+```
+
+
+# Control vs Intermediate
+```{r}
+da_results_ctl_int %>%
+  arrange(- SpatialFDR) %>%
+  head() 
+```
+
+Intermediate vs End
+```{r}
+da_results_int_end %>%
+  arrange(- SpatialFDR) %>%
+  head() 
+
+```
+
+Ctl vs End
+```{r}
+da_results_ctl_end %>%
+  arrange(- SpatialFDR) %>%
+  head() 
+```
+
+```{r}
+write.csv(da_results_ctl_int, "da_ctlvsint.csv", row.names = FALSE)
+write.csv(da_results_int_end, "da_endvsint.csv", row.names = FALSE)
+write.csv(da_results_ctl_end, "da_ctlvsend.csv", row.names = FALSE)
+
+```
+
+```{r}
+rasv_milo <- buildNhoodGraph(rasv_milo)
+```
+
+```{r}
+p1 <- plotUMAP(rasv_milo, colour_by="cell_type", point_size=0.9,text_by = "cell_type", text_size = 3.5) + plotNhoodGraphDA(rasv_milo, da_results_ctl_int, alpha=0.5) +
+      plot_layout(guides="auto" )+
+      ggtitle("Intermediate vs Control")
+
+p2 <- plotUMAP(rasv_milo, colour_by="cell_type", point_size=0.9, text_by = "cell_type", text_size = 3.5) + plotNhoodGraphDA(rasv_milo, da_results_int_end, alpha=0.5) +
+      plot_layout(guides="auto" )+
+      ggtitle("Intermediate vs End ")
+
+p3 <- plotUMAP(rasv_milo, colour_by="cell_type", point_size=0.9, text_by = "cell_type", text_size = 3.5) + plotNhoodGraphDA(rasv_milo, da_results_ctl_end, alpha=0.5) + 
+      plot_layout(guides="auto" )+
+      ggtitle("End vs Control")
+```
+
+This calculates a Fold-change and corrected P-value for each neighbourhood, which indicates whether there is significant differential abundance between condition
+
+```{r}
+ggsave("intVSctl.pdf", plot = p1, width = 8, height = 6, dpi = 300)
+p1
+```
+
+```{r}
+ggsave("intVSend.pdf", plot = p2, width = 8, height = 6, dpi = 300)
+
+p2
+```
+
+
+```{r}
+ggsave("endVSctl.pdf", plot = p3, width = 8, height = 6, dpi = 300)
+p3
+```
+
+```{r}
+# annotate the cells on the da files 
+da_results_ctl_int <- annotateNhoods(rasv_milo, da_results_ctl_int, coldata_col = "cell_type")
+da_results_int_end <- annotateNhoods(rasv_milo, da_results_int_end, coldata_col = "cell_type")
+da_results_ctl_end <- annotateNhoods(rasv_milo, da_results_ctl_end, coldata_col = "cell_type")
+```
+
+```{r}
+# whatever group is less than 0.7 call it mixed
+da_results_ctl_int$cell_type <- ifelse(da_results_ctl_int$cell_type_fraction < 0.7, "Mixed", da_results_ctl_int$cell_type)
+da_results_int_end$cell_type <- ifelse(da_results_int_end$cell_type_fraction < 0.7, "Mixed", da_results_int_end$cell_type)
+da_results_ctl_end$cell_type <- ifelse(da_results_ctl_end$cell_type_fraction < 0.7, "Mixed", da_results_ctl_end$cell_type)
+```
+
+
+## Beeswarm plots
+
+```{r}
+bee1 <- plotDAbeeswarm(da_results_ctl_int, group.by = "cell_type", alpha = 1)+ggtitle("Intermediate vs Control")
+ggsave("intVSctl_beeswarm.pdf", plot = bee1, width = 7, height = 5, dpi = 300)
+bee2 <- plotDAbeeswarm(da_results_int_end, group.by = "cell_type", alpha = 1)+ggtitle("Intermediate vs End")
+ggsave("intVSend_beeswarm.pdf", plot = bee2, width = 7, height = 5, dpi = 300)
+bee3 <- plotDAbeeswarm(da_results_ctl_end, group.by = "cell_type", alpha = 1)+ggtitle("End vs Control")
+ggsave("endVSctl_beeswarm.pdf", plot = bee3, width = 7, height = 5, dpi = 300)
+```
+```{r}
+bee1
+bee2
+bee3
+```
+
+
+## Using the SCVI DATASET
+
+```{r}
+object <- readRDS("SCT/")
+rasv <- as.SingleCellExperiment(object)
+rasv_milo <- Milo(rasv) #turn to milo obj
+rm(object)
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+

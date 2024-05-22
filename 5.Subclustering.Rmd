@@ -1,0 +1,477 @@
+---
+title: "sub_clustering"
+author: "Theo"
+date: "2024-05-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+```
+
+```{r}
+library(Seurat)
+library(patchwork)
+set.seed(9999)
+library(miloR)
+library(scater)
+library(tidyverse)
+library(presto)
+
+```
+
+```{r}
+object <- readRDS("SCT/intgr_indiv_SCT_harmony/data/annotated_intgr.rds")
+DimPlot(object, reduction = "umap", label = TRUE, shuffle = T, group.by = "condition")
+
+```
+
+```{r}
+
+# gene_of_interest <- "Cd8a"
+# conditions <- unique(T_cell_SCT@meta.data$condition)
+# df_gene_expression <- data.frame()
+# 
+# for (cond in conditions) {
+#   cells_in_condition <- WhichCells(T_cell, expression = condition == cond)
+#   sct_data <- GetAssayData(T_cell, assay = "SCT", slot = "data")[gene_of_interest, cells_in_condition]
+#   
+#   temp_df <- data.frame(expression = sct_data, Assay = "SCT", Condition = cond)
+#   df_gene_expression <- rbind(df_gene_expression, temp_df)
+# }
+# 
+# p2<- ggplot(df_gene_expression, aes(x = expression, fill = Condition)) +
+#   geom_density(alpha = 0.5) +
+#   labs(title = paste("Distribution of", gene_of_interest, "Expression by Condition"),
+#        x = paste(gene_of_interest, "Expression"),
+#        y = "Density") +
+#   scale_fill_brewer(palette = "Set1") +
+#   theme_minimal()
+# p1 + p2
+```
+
+```{r}
+T_cell <- subset(object, subset = cell_type== "T")
+T_cell_SCT <- T_cell
+NK_T <- subset(object, subset  = cell_type== "NK/T")
+Ec <-  subset(object, subset  = cell_type== "EC")
+EC_SCT <- Ec
+Myelo <- subset(object, subset  = cell_type== "M/MC")
+Gran <- subset(object, subset  = cell_type== "Gran")
+B_cell <- subset(object, subset  = cell_type== "B")
+plasm <- subset(object, subset  = cell_type== "plasm/?")
+pDCs <- subset(object, subset  = cell_type== "pDCs")
+HC1_cell <- subset(object, subset = cell_type == "HEP1/C")
+HC2_cell <- subset(object, subset = cell_type == "HEP2/CC")
+
+rm(object)
+```
+
+
+
+
+
+## T-Cells
+
+```{r}
+T_cell <- FindNeighbors(T_cell, reduction = "harmony", dims = 1:50)
+T_cell <- FindClusters(T_cell, algorithm = 4, method = "igraph" , resolution = 0.3)
+T_cell <- RunUMAP(T_cell, dims = 1:50, assay = "SCT", reduction = "harmony")
+
+p1 <- DimPlot(T_cell, reduction = "umap", label = TRUE, shuffle = T) + DimPlot(T_cell, reduction = "umap", group.by = "condition", label = TRUE, shuffle = T)
+p2 <- DimPlot(T_cell, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
+p1
+# ggsave("T_cell_umap_0_3.pdf", plot = p1, device = "pdf", dpi = 300, width = 10, height = 8)
+# ggsave("T_cell_umap_anchor_pred.pdf", plot = p2, device = "pdf", dpi = 300, width = 10, height = 8)
+# p1
+# # markers
+# T_markers <- wilcoxauc(T_cell, seurat_assay = "SCT","SCT_snn_res.0.3")
+# # set filtering params
+# top_genes <- top_markers(T_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# top_genes <- top_genes[, sort(names(top_genes))]
+# write.csv(top_genes, "T_cell_Markers_res_0_3.csv", row.names = FALSE)
+
+saveRDS(T_cell, "T_cell.rds")
+```
+
+```{r}
+
+T_cell_SCT <- SCTransform(T_cell_SCT, vars.to.regress = "percent.mt", verbose = TRUE, assay = "RNA")
+T_cell_SCT <- RunPCA(T_cell_SCT)
+T_cell_SCT <- FindNeighbors(T_cell_SCT,  reduction = "harmony", dims = 1:50)
+T_cell_SCT <- FindClusters(T_cell_SCT, algorithm = 4, method = "igraph" , resolution = 0.3)
+T_cell_SCT <- RunUMAP(T_cell_SCT, dims = 1:50)
+
+DimPlot(T_cell_SCT, reduction = "umap", label = TRUE, shuffle = T) + DimPlot(T_cell_SCT, reduction = "umap", group.by = "condition", label = TRUE, shuffle = T)
+
+T_SCT_markers <- wilcoxauc(T_cell_SCT, seurat_assay = "SCT","SCT_snn_res.0.3")
+# set filtering params
+top_genes <- top_markers(T_SCT_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+top_genes <- top_genes[, sort(names(top_genes))]
+write.csv(top_genes, "T_cell_SCT_Markers_res_0_3.csv", row.names = FALSE)
+saveRDS(T_cell, "T_cell_SCT.rds")
+```
+
+
+## Endothelial cells
+
+```{r}
+Ec <- FindNeighbors(Ec, reduction = "harmony", dims = 1:50)
+Ec <- FindClusters(Ec, algorithm = 4, method = "igraph" , resolution = 0.2)
+Ec <- RunUMAP(Ec, dims = 1:50, assay = "SCT", reduction = "harmony")
+p1 <-DimPlot(Ec, reduction = "umap", label = TRUE, shuffle = TRUE, alpha= 0.5) + DimPlot(Ec, reduction = "umap",group.by = "condition", label = TRUE)
+p2 <-DimPlot(Ec, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
+p1
+# ggsave("EC_umap_0_2.pdf", plot = p1, device = "pdf", dpi = 300, width = 10, height = 8)
+# ggsave("EC_umap_anchor_pred.pdf", plot = p2, device = "pdf", dpi = 300, width = 10, height = 8)
+# 
+# # markers
+Ec_markers <- wilcoxauc(Ec, seurat_assay = "SCT","SCT_snn_res.0.2")
+top_genes <- top_markers(Ec_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+top_genes <- top_genes[, sort(names(top_genes))]
+write.csv(top_genes, "Ec_Markers_res_0_2.csv", row.names = FALSE)
+#saveRDS(Ec, "Ec.rds")
+
+```
+
+```{r}
+EC_SCT <- SCTransform(EC_SCT, vars.to.regress = "percent.mt", verbose = TRUE, assay = "RNA")
+EC_SCT <- RunPCA(EC_SCT)
+EC_SCT <- FindNeighbors(EC_SCT,  reduction = "harmony", dims = 1:50)
+EC_SCT <- FindClusters(EC_SCT, algorithm = 4, method = "igraph" , resolution = 0.3)
+EC_SCT <- RunUMAP(EC_SCT, dims = 1:50)
+
+DimPlot(EC_SCT, reduction = "umap", label = TRUE, shuffle = T) + DimPlot(EC_SCT, reduction = "umap", group.by = "condition", label = TRUE, shuffle = T)
+
+EC_SCT_markers <- wilcoxauc(EC_SCT, seurat_assay = "SCT","SCT_snn_res.0.3")
+# set filtering params
+top_genes <- top_markers(EC_SCT_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+top_genes <- top_genes[, sort(names(top_genes))]
+write.csv(top_genes, "EC_SCT_Markers_res_0_3.csv", row.names = FALSE)
+saveRDS(T_cell, "EC_SCT.rds")
+```
+
+
+## Myeloid
+
+```{r}
+Myelo <- FindNeighbors(Myelo, reduction = "harmony", dims = 1:50)
+Myelo <- FindClusters(Myelo, algorithm = 4, method = "igraph" , resolution = 0.3)
+Myelo <- RunUMAP(Myelo, dims = 1:50, assay = "SCT", reduction = "harmony")
+p1 <-DimPlot(Myelo, reduction = "umap", label = TRUE) + DimPlot(Myelo, reduction = "umap",group.by = "condition", label = TRUE)
+p2 <-DimPlot(Myelo, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
+
+# ggsave("Myelo_umap_0_3.pdf", plot = p1, device = "pdf", dpi = 300, width = 10, height = 8)
+# ggsave("Myelo_umap_anchor_pred.pdf", plot = p2, device = "pdf", dpi = 300, width = 10, height = 8)
+# # markers
+# Myelo_markers <- wilcoxauc(Myelo, seurat_assay = "SCT","SCT_snn_res.0.3")
+# top_genes <- top_markers(Myelo_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# top_genes <- top_genes[, sort(names(top_genes))]
+# write.csv(top_genes, "Myelo_Markers_res_0_3.csv", row.names = FALSE)
+saveRDS(Myelo, "Myelo.rds")
+```
+
+## Granules
+
+```{r}
+Gran <- FindNeighbors(Gran, reduction = "harmony", dims = 1:50)
+Gran <- FindClusters(Gran, algorithm = 4, method = "igraph" , resolution = 0.07)
+Gran <- RunUMAP(Gran, dims = 1:50, assay = "SCT", reduction = "harmony")
+p1 <-DimPlot(Gran, reduction = "umap", label = TRUE) + DimPlot(Gran, reduction = "umap",group.by = "condition", label = TRUE)
+p2 <-DimPlot(Gran, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
+
+# # markers
+# Gran_markers <- wilcoxauc(Gran, seurat_assay = "SCT","SCT_snn_res.0.07")
+# top_genes <- top_markers(Gran_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# top_genes <- top_genes[, sort(names(top_genes))]
+# write.csv(top_genes, "Gran_Markers_res_0_07.csv", row.names = FALSE)
+saveRDS(Gran, "Gran.rds")
+```
+
+## Nk/T
+
+```{r}
+NK_T <- FindNeighbors(NK_T, reduction = "harmony", dims = 1:50)
+NK_T <- FindClusters(NK_T, algorithm = 4, method = "igraph" , resolution = 0.3)
+NK_T <- RunUMAP(NK_T, dims = 1:50, assay = "SCT", reduction = "harmony")
+p1 <-DimPlot(NK_T, reduction = "umap", label = TRUE) + DimPlot(NK_T, reduction = "umap",group.by = "condition", label = TRUE)
+p2 <-DimPlot(NK_T, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
+
+
+# # markers
+# NK_markers <- wilcoxauc(NK_T, seurat_assay = "SCT","SCT_snn_res.0.3") 
+# top_genes <- top_markers(NK_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# top_genes <- top_genes[, sort(names(top_genes))]
+# write.csv(top_genes, "NK_Markers_res_0_3.csv", row.names = FALSE)
+saveRDS(NK_T, "NK_T.rds")
+```
+
+## Plasma and other cells
+
+```{r}
+plasm <- FindNeighbors(plasm, reduction = "harmony", dims = 1:50)
+plasm <- FindClusters(plasm, algorithm = 4, method = "igraph" , resolution = 0.1)
+plasm <- RunUMAP(plasm, dims = 1:50, assay = "SCT", reduction = "harmony")
+p1 <-DimPlot(plasm, reduction = "umap", label = TRUE) + DimPlot(plasm, reduction = "umap",group.by = "condition", label = TRUE)
+p2 <-DimPlot(plasm, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
+
+# # markers
+# plasm_markers <- wilcoxauc(plasm, seurat_assay = "SCT","SCT_snn_res.0.1")
+# top_genes <- top_markers(plasm_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# top_genes <- top_genes[, sort(names(top_genes))]
+# write.csv(top_genes, "Plasma_Markers_res_0_1.csv", row.names = FALSE)
+saveRDS(plasm, "plasm.rds")
+```
+
+```{r}
+pDCs <- FindNeighbors(pDCs, reduction = "harmony", dims = 1:50)
+pDCs <- FindClusters(pDCs, algorithm = 4, method = "igraph" , resolution = 0.13)
+pDCs <- RunUMAP(pDCs, dims = 1:50, assay = "SCT", reduction = "harmony")
+p1 <-DimPlot(pDCs, reduction = "umap", label = TRUE) + DimPlot(pDCs, reduction = "umap",group.by = "condition", label = TRUE)
+p2 <-DimPlot(pDCs, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
+p1
+# # markers
+# pDCs_markers <- wilcoxauc(pDCs, seurat_assay = "SCT","SCT_snn_res.0.13")
+# top_genes <- top_markers(pDCs_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# top_genes <- top_genes[, sort(names(top_genes))]
+# write.csv(top_genes, "pDCs_Markers_res_0_13.csv", row.names = FALSE)
+saveRDS(pDCs, "pDCs.rds")
+```
+
+## B cells
+
+```{r}
+B_cell <- FindNeighbors(B_cell, reduction = "harmony", dims = 1:50)
+B_cell <- FindClusters(B_cell, algorithm = 4, method = "igraph" , resolution = 0.08)
+B_cell <- RunUMAP(B_cell, dims = 1:50, assay = "SCT", reduction = "harmony")
+p1 <-DimPlot(B_cell, reduction = "umap", label = TRUE, shuffle = T) + DimPlot(B_cell, reduction = "umap",group.by = "condition", label = TRUE, shuffle = T)
+p2 <-DimPlot(B_cell, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
+p1
+
+
+# # markers
+# B_markers <- wilcoxauc(B_cell, seurat_assay = "SCT","SCT_snn_res.0.08")
+# # set filtering params
+# top_genes <- top_markers(B_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# top_genes <- top_genes[, sort(names(top_genes))]
+# write.csv(top_genes, "B_cell_Markers_res_0_08.csv", row.names = FALSE)
+saveRDS(B_cell, "B_cell.rds")
+```
+
+## hep/ tumor 1
+
+```{r}
+
+HC1_cell <- FindNeighbors(HC1_cell, reduction = "harmony", dims = 1:50)
+HC1_cell <- FindClusters(HC1_cell, algorithm = 4, method = "igraph" , resolution = 0.06)
+HC1_cell <- RunUMAP(HC1_cell, dims = 1:50, assay = "SCT", reduction = "harmony")
+
+p2 <-DimPlot(HC1_cell, reduction = "umap", label = TRUE) + DimPlot(HC1_cell, reduction = "umap",group.by = "condition", shuffle = T)
+p2
+
+
+# # markers
+# HC1_markers <- wilcoxauc(HC1_cell, seurat_assay = "SCT","SCT_snn_res.0.06")
+# # set filtering params
+# top_genes <- top_markers(HC1_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# top_genes <- top_genes[, sort(names(top_genes))]
+# write.csv(top_genes, "HC1_markers_0_06.csv", row.names = FALSE)
+saveRDS(HC1_cell, "HC1_cell.rds")
+```
+
+## hep/ tumor 2
+
+```{r}
+HC2_cell <- FindNeighbors(HC2_cell, reduction = "harmony", dims = 1:50)
+HC2_cell <- FindClusters(HC2_cell, algorithm = 4, method = "igraph" , resolution = 0.15)
+HC2_cell <- RunUMAP(HC2_cell, dims = 1:50, assay = "SCT", reduction = "harmony")
+#p1 <- "umap", label = TRUE) + DimPlot(HC2_cell, reduction = "umap",group.by = "condition", shuffle = T)
+DimPlot(HC2_cell, reduction = "umap", label = TRUE) 
+
+
+# # # markers
+# HC2_markers <- wilcoxauc(HC2_cell, seurat_assay = "SCT","SCT_snn_res.0.15")
+# # # set filtering params
+# top_genes <- top_markers(HC2_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# top_genes <- top_genes[, sort(names(top_genes))]
+# write.csv(top_genes, "HC2_markers_0_15.csv", row.names = FALSE)
+saveRDS(HC2_cell, "HC2_cell.rds")
+```
+
+### Enrichment based on the dataset from oncofetal
+
+## First transform human markers from the paper to mouse ones, the xlsx file has 2 layers one from myeloid and one for endothelial cells
+
+```{r}
+
+#devtools::install_github("montilab/hypeR")
+# install.packages("readxl")   # If the table is in an Excel file
+# install.packages("openxlsx") # If the table is in an Excel file
+# install.packages("tidyverse") # For data manipulation
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# BiocManager::install("biomaRt")
+# 
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# BiocManager::install("biomaRt")
+library(readxl)
+library(openxlsx)
+library(tidyverse)
+library(biomaRt)
+library(anndataR)
+library(hypeR)
+library(biomaRt)
+```
+
+```{r}
+
+
+path <- ("SCT/intgr_indiv_SCT_harmony/Subclustering/markers_enrichment_oncofetal/mmc.xlsx")
+
+MNC_df <- read_excel(path, sheet = 1)
+EC_df <- read_excel(path, sheet = 2)
+
+# based on how my  the excel is structured
+MNC_df <- MNC_df[-1,-1]
+new_colnames <- as.character(MNC_df[1, ])
+MNC_df <- MNC_df[-1, ]
+colnames(MNC_df) <- new_colnames
+EC_df <- EC_df[-1,-1]
+new_colnames <- as.character(EC_df[1, ])
+EC_df <- EC_df[-1, ]
+colnames(EC_df) <- new_colnames
+```
+
+```{r}
+# put the human gene names from the dataframe in a vector to input LDS
+EC_human_genes <- unique(as.vector(as.matrix(EC_df)))
+MNC_human_genes <- unique(as.vector(as.matrix(MNC_df)))
+
+#listEnsemblArchives()
+#listMarts()
+
+# human_mart <- useEnsembl(biomart = "ensembl", dataset = "hsapiens_gene_ensembl", , host = "https://jul2022.archive.ensembl.org",verbose = T, mirror = "www")
+# mouse_mart <- useEnsembl(biomart = "ensembl", dataset = "mmusculus_gene_ensembl", , host = "https://jul2022.archive.ensembl.org", verbose = T,mirror = "www")
+
+human <- useMart("ensembl", dataset = "hsapiens_gene_ensembl", host = "https://dec2021.archive.ensembl.org/") # human
+mart <- useMart("ensembl", dataset = "mmusculus_gene_ensembl", host = "https://dec2021.archive.ensembl.org/") #mouse only this version of december works
+
+## Endothelial clusters
+# Get the orthologous mouse genes using human gene symbols
+EC_mapping <- getLDS(
+  attributes = c("hgnc_symbol"), # Use human gene symbols as the attribute
+  filters = "hgnc_symbol", # Use human gene symbols as the filter
+  values = EC_human_genes, # Your list of human gene symbols
+  mart = human, # Human mart
+  attributesL = c("mgi_symbol"), # Retrieve mouse gene symbols
+  martL = mart, # Mouse mart
+  uniqueRows = TRUE
+)
+
+#monocytes/macrophages clusters
+MNC_mapping <- getLDS(
+  attributes = c("hgnc_symbol"), 
+  filters = "hgnc_symbol", 
+  values = MNC_human_genes, 
+  mart = human, 
+  attributesL = c("mgi_symbol"), 
+  martL = mart, 
+  uniqueRows = TRUE
+)
+
+colnames(EC_mapping) <- c("human_gene", "mouse_gene")
+colnames(MNC_mapping) <- c("human_gene", "mouse_gene")
+```
+
+# Function to replace the gene names
+```{r}
+replace_with_mouse <- function(human_gene_name, mapping_df) {
+  mouse_genes <- mapping_df$mouse_gene[mapping_df$human_gene == human_gene_name]
+  
+  if(length(mouse_genes) == 0) {
+    return(NA)  # Return NA if no mouse gene is found or we can use the Human gene names / or we later input the ones manualy based on the new db
+  } else {
+    return(paste(mouse_genes, collapse = ", "))
+  }
+}
+```
+
+## Some gene names dont have any orthologues or they do but the version doesnt include it
+
+```{r}
+EC_df[] <- lapply(EC_df, function(column) sapply(column, replace_with_mouse, mapping_df = EC_mapping))
+MNC_df[] <- lapply(MNC_df, function(column) sapply(column, replace_with_mouse, mapping_df = MNC_mapping))
+
+
+# Check the updated data frame
+print(EC_df)
+write.csv(EC_df, "EC_mouse.csv", row.names = FALSE)
+write.csv(MNC_df, "MNC_mouse.csv", row.names = FALSE)
+```
+## Enrichment of EC based on oncofetal paper 
+```{r}
+# Import my endothelial cell DGE markers
+EC_HCC <- read_csv("Ec_Markers_res_0_2.csv")
+EC_HCC <- EC_HCC[,c(-8)] # remove the rank column
+colnames(EC_HCC) <- c("cl1","cl2","cl3","cl4","cl5","cl6","cl7")  # my non annotated subclusters
+EC_HCC_list <- lapply(EC_HCC, as.vector) # transform the df into a list of vectors (each subcluster)
+
+
+colnames(EC_df) <- c("0_PLPP3+EC", "1_PLPP3+EC", "2_CD9+EC", "3_PLVAP+EC", "4_PLVAP+EC", "5-CD9+EC",	"6_CD320EC", "7_IGFBP3+EC", "8_IGFBP3+EC", "9_IGFBP3+EC", "10_TFF3+EC")
+
+signatures_list <- lapply(EC_df, as.vector)
+
+enrich_results <- hypeR(signatures_list, EC_HCC_list, test="hypergeometric", background=30000)
+
+hyp_to_excel(enrich_results, file_path="enrich_results_EC_100markers.xlsx")
+```
+
+
+## Use hyper R for enrichment analysis 
+
+```{r}
+library(viridis)
+# Plot dots plot
+p1<- hyp_dots(enrich_results, merge=TRUE, fdr = 0.05, size_by= "significance")
+
+p1 <- p1 +
+  scale_color_viridis_c(option = "magenda", direction = -1, guide = guide_colorbar(reverse = T)) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    plot.background = element_rect(fill = "black", color = NA),
+    panel.background = element_rect(fill = "grey30", color = NA),
+    panel.grid.major = element_line(color = "black"),
+    panel.grid.minor = element_line(color = "grey20"),
+    axis.text.x = element_text(angle = 45, hjust = 1, color = "white"),
+    axis.text.y = element_text(color = "white"),
+    axis.title = element_text(color = "white"),
+    legend.background = element_rect(fill = "black", color = NA),
+    legend.key = element_rect(fill = "white", color = NA),
+    legend.title = element_text(size = 10, color = "white"),
+    legend.text = element_text(size = 10, color = "white"),
+    legend.key.size = unit(0.5, "cm"),  # Adjusted legend key size
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold", color = "white")  # Center the title and style it
+  ) +
+  labs(color = "FDR", size = "Significance") +
+  ggtitle("Endothelial Cells Enrichment")
+p1
+
+ggsave("EC_dorplot_Enrichment.pdf", plot = p1, device = "pdf", dpi = 300, width = 10, height = 7, units = "in")
+hyp_hmap(enrich_results, top = 10)
+
+
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+

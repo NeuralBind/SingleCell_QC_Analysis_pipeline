@@ -159,10 +159,10 @@ for (object_name in RasV_stages.list) {
   nCount_values <- current_object@meta.data$nCount_RNA
 
   # Upper limit quantile
-  upper_lim_nCount <- quantile(nCount_values, 0.99)
+  upper_lim_nCount <- quantile(nCount_values, 0.98)
   
   # Lower limit quantile
-  lower_lim_nCount <- quantile(nCount_values, 0.01)
+  lower_lim_nCount <- quantile(nCount_values, 0.02)
   
   
   

@@ -76,8 +76,9 @@ write.csv(top_genes, "SCT/intgr_indiv_SCT/Cell_Markers_res_0_6.csv", row.names =
 # Sc_filtered <- FindClusters(Sc_filtered, algorithm = 4, method = "igraph", resolution = 0.3 )
 # Sc_filtered <- RunUMAP(Sc_filtered, reduction = "harmony", dims = 1:50, assay = "SCT", seed.use= 9999)
 # 
-# p<- DimPlot(Sc_filtered, reduction = "umap", label = T, group.by = "SCT_snn_res.0.08", alpha = 0.14)
-# 
+p<- DimPlot(Sc_filtered, reduction = "umap", label = T, group.by = "cell_type", alpha = 0.14)+ ggtitle("Manual cell annotation - res 0.06")
+p
+ggsave("manual_celltype_annotation_res0_06.pdf")
 # p
 # ggsave("conditions_harmony_indivproc_res0_12c.pdf", p)
 saveRDS(Sc_filtered,"SCT/harmony_integrated_individ.rds")
@@ -119,17 +120,17 @@ cluster_to_celltype <- c( "1" = "EC",
 # Pass the cell names of the manual identification to the cell_type column depending the clustering resolution we want
 
 ```{r}
-Sc_filtered@meta.data$cell_type <- cluster_to_celltype[as.character(Sc_filtered@meta.data$SCT_snn_res.0.06)]
-
-p3<- DimPlot(Sc_filtered, reduction = "umap", label = T, group.by = "SCT_snn_res.0.06", alpha = 0.1)
+# Sc_filtered@meta.data$cell_type <- cluster_to_celltype[as.character(Sc_filtered@meta.data$SCT_snn_res.0.06)]
+# 
+# p3<- DimPlot(Sc_filtered, reduction = "umap", label = T, group.by = "SCT_snn_res.0.06", alpha = 0.1)
 
 cell_types <- levels(factor(Sc_filtered$cell_type))
 col.ls <- ArchRPalettes[[4]][1:length(cell_types)]
 names(col.ls) <- cell_types
 
-p4 <- DimPlot(Sc_filtered, reduction = "umap", shuffle = T, group.by = "cell_type", alpha= 0.1, label = T, cols = col.ls )
-p4
-saveRDS(Sc_filtered,"SCT/intgr_indiv_SCT_harmony/data/annotated_intgr.rds" )
+# p4 <- DimPlot(Sc_filtered, reduction = "umap", shuffle = T, group.by = "cell_type", alpha= 0.1, label = T, cols = col.ls )
+# p4
+# saveRDS(Sc_filtered,"SCT/intgr_indiv_SCT_harmony/data/annotated_intgr.rds" )
 ```
 
 ## PLOTTING DISTRIVUTIONS
@@ -138,7 +139,7 @@ saveRDS(Sc_filtered,"SCT/intgr_indiv_SCT_harmony/data/annotated_intgr.rds" )
 
 stacked <- dittoBarPlot(
             object = Sc_filtered,
-            var = "celltype_wide",
+            var = "cell_type",
             group.by = "condition",
             x.reorder= c(1,3,2),
             #var.labels.reorder = c(1,12,9,8,11,10,5,4,2,3,6,7),
@@ -148,14 +149,12 @@ stacked <- dittoBarPlot(
 
 stacked
 
-ggsave("SCT/cell_type_conditions_stackedXUE_indiv.pdf", stacked, width = 10, height = 8)
+ggsave("SCT/cell_type_conditions_stackedbar.pdf", stacked, width = 10, height = 8)
 ```
 
 ```{r}
 
-#Sc_filtered$cell_type <- Sc_filtered$
 
-#Sc_filtered <- readRDS("SCT/annotated_intgr_res0_08.rds")
 metadata <- Sc_filtered@meta.data
 
 
@@ -163,7 +162,7 @@ metadata <- Sc_filtered@meta.data
 # percentages per dataset of each celltype
 
 percentage_data <- metadata %>%
-  group_by(batch, cell_type,condition) %>%
+  group_by(batch, cell_type, condition) %>%
   summarise(total_cells = n(), .groups = 'drop') %>%
   group_by(batch) %>%
   mutate(percentage = total_cells / sum(total_cells) * 100) %>%
@@ -241,9 +240,9 @@ p1 <- ggplot(cell_perc, aes(x = condition, y = mean_percentage, fill = condition
       width = 0.2, position = position_dodge(0.7)) +
       facet_wrap(~cell_type) +
       labs(x = "Condition", y = "Percentage", title = "Cell Type per stage") +
-      theme_minimal()
+      theme_dark()
 p1
-ggsave("output/cell_type_anch.pdf", p1, width = 10, height = 8)
+ggsave("output/cell_type_0_06.pdf", p1, width = 10, height = 8)
 ```
 
 ## B) Label Transfer - from human annotated file
