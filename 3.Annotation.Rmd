@@ -120,7 +120,7 @@ cluster_to_celltype <- c( "1" = "EC",
 # Pass the cell names of the manual identification to the cell_type column depending the clustering resolution we want
 
 ```{r}
-# Sc_filtered@meta.data$cell_type <- cluster_to_celltype[as.character(Sc_filtered@meta.data$SCT_snn_res.0.06)]
+Sc_filtered@meta.data$cell_type <- cluster_to_celltype[as.character(Sc_filtered@meta.data$SCT_snn_res.0.06)]
 # 
 # p3<- DimPlot(Sc_filtered, reduction = "umap", label = T, group.by = "SCT_snn_res.0.06", alpha = 0.1)
 

@@ -35,14 +35,15 @@ library(anndata)
 ## Seurat to Anndata
 
 ```{r}
-merged <-readRDS("SCT/intgr_indiv_SCT/data/merged_individualy_SCTprocessed.rds")
+merged <-readRDS("SCT/intgr_indiv_SCT_harmony/Subclustering/data/T_cell.rds")
 
 ## need to convert the assay class from assay5 to assay (v3)
 merged[["RNA"]] <- as(object = merged[["RNA"]], Class = "Assay")
 DefaultAssay(merged) <- "RNA"
 merged <- DietSeurat(merged, assays = "RNA", layers = "counts")
 
-SaveH5Seurat(merged, filename = "RasV.h5Seurat", overwrite = T, verbose = T)
+SaveH5Seurat(merged, filename = "T.h5Seurat", overwrite = T, verbose = T)
+Convert("T.h5Seurat", dest = "h5ad", overwrite = TRUE)
 
 
 ```

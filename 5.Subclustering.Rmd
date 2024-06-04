@@ -16,8 +16,8 @@ set.seed(9999)
 library(miloR)
 library(scater)
 library(tidyverse)
+library(viridis)
 library(presto)
-
 ```
 
 ```{r}
@@ -27,35 +27,11 @@ DimPlot(object, reduction = "umap", label = TRUE, shuffle = T, group.by = "condi
 ```
 
 ```{r}
-
-# gene_of_interest <- "Cd8a"
-# conditions <- unique(T_cell_SCT@meta.data$condition)
-# df_gene_expression <- data.frame()
-# 
-# for (cond in conditions) {
-#   cells_in_condition <- WhichCells(T_cell, expression = condition == cond)
-#   sct_data <- GetAssayData(T_cell, assay = "SCT", slot = "data")[gene_of_interest, cells_in_condition]
-#   
-#   temp_df <- data.frame(expression = sct_data, Assay = "SCT", Condition = cond)
-#   df_gene_expression <- rbind(df_gene_expression, temp_df)
-# }
-# 
-# p2<- ggplot(df_gene_expression, aes(x = expression, fill = Condition)) +
-#   geom_density(alpha = 0.5) +
-#   labs(title = paste("Distribution of", gene_of_interest, "Expression by Condition"),
-#        x = paste(gene_of_interest, "Expression"),
-#        y = "Density") +
-#   scale_fill_brewer(palette = "Set1") +
-#   theme_minimal()
-# p1 + p2
-```
-
-```{r}
 T_cell <- subset(object, subset = cell_type== "T")
-T_cell_SCT <- T_cell
+#T_cell_SCT <- T_cell
 NK_T <- subset(object, subset  = cell_type== "NK/T")
 Ec <-  subset(object, subset  = cell_type== "EC")
-EC_SCT <- Ec
+#EC_SCT <- Ec
 Myelo <- subset(object, subset  = cell_type== "M/MC")
 Gran <- subset(object, subset  = cell_type== "Gran")
 B_cell <- subset(object, subset  = cell_type== "B")
@@ -64,54 +40,53 @@ pDCs <- subset(object, subset  = cell_type== "pDCs")
 HC1_cell <- subset(object, subset = cell_type == "HEP1/C")
 HC2_cell <- subset(object, subset = cell_type == "HEP2/CC")
 
-rm(object)
+#rm(object)
 ```
-
-
-
-
 
 ## T-Cells
 
 ```{r}
 T_cell <- FindNeighbors(T_cell, reduction = "harmony", dims = 1:50)
-T_cell <- FindClusters(T_cell, algorithm = 4, method = "igraph" , resolution = 0.3)
+T_cell <- FindClusters(T_cell, algorithm = 4, method = "igraph" , resolution = 0.25)
 T_cell <- RunUMAP(T_cell, dims = 1:50, assay = "SCT", reduction = "harmony")
 
 p1 <- DimPlot(T_cell, reduction = "umap", label = TRUE, shuffle = T) + DimPlot(T_cell, reduction = "umap", group.by = "condition", label = TRUE, shuffle = T)
 p2 <- DimPlot(T_cell, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
 p1
-# ggsave("T_cell_umap_0_3.pdf", plot = p1, device = "pdf", dpi = 300, width = 10, height = 8)
-# ggsave("T_cell_umap_anchor_pred.pdf", plot = p2, device = "pdf", dpi = 300, width = 10, height = 8)
+
+
+#p2
+#ggsave("T_cell_umap_0_25.png", plot = p1, width = 10, height = 10)
+#ggsave("T_cell_umap_0.25.pdf", plot = p1, device = "pdf", dpi = 300, width = 10, height = 8)
 # p1
 # # markers
-# T_markers <- wilcoxauc(T_cell, seurat_assay = "SCT","SCT_snn_res.0.3")
-# # set filtering params
-# top_genes <- top_markers(T_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# T_markers <- wilcoxauc(T_cell, seurat_assay = "SCT","SCT_snn_res.0.25")
+# # # set filtering params
+# top_genes <- top_markers(T_markers, n = 450, auc_min = .5, padj_max = 0.05, pct_in_min = 10)
 # top_genes <- top_genes[, sort(names(top_genes))]
-# write.csv(top_genes, "T_cell_Markers_res_0_3.csv", row.names = FALSE)
+# write.csv(top_genes, "T_cell_450Markers_res_0_25.csv", row.names = FALSE)
 
-saveRDS(T_cell, "T_cell.rds")
+saveRDS(T_cell, "T_cell_annot.rds")
 ```
+
+# Manual annotation of the T cells res 0.25
 
 ```{r}
+T_manual <- c( "1" = "Dysf/Exhausted_CD8+_T",
+                          "2" = "Naive_T",
+                          "3" = "Hif1a_CD4_T",
+                          "4" = "Apoe_T",
+                          "5" = "Itgb1_CD8_T",
+                          "6" = "Proliferating_T",
+                          "7" = "Ebf1_B",
+                          "8" = "Klrg1_T"
+                          )
 
-T_cell_SCT <- SCTransform(T_cell_SCT, vars.to.regress = "percent.mt", verbose = TRUE, assay = "RNA")
-T_cell_SCT <- RunPCA(T_cell_SCT)
-T_cell_SCT <- FindNeighbors(T_cell_SCT,  reduction = "harmony", dims = 1:50)
-T_cell_SCT <- FindClusters(T_cell_SCT, algorithm = 4, method = "igraph" , resolution = 0.3)
-T_cell_SCT <- RunUMAP(T_cell_SCT, dims = 1:50)
+T_cell@meta.data$cell_subtype <- T_manual[as.character(T_cell@meta.data$SCT_snn_res.0.25)]
 
-DimPlot(T_cell_SCT, reduction = "umap", label = TRUE, shuffle = T) + DimPlot(T_cell_SCT, reduction = "umap", group.by = "condition", label = TRUE, shuffle = T)
-
-T_SCT_markers <- wilcoxauc(T_cell_SCT, seurat_assay = "SCT","SCT_snn_res.0.3")
-# set filtering params
-top_genes <- top_markers(T_SCT_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
-top_genes <- top_genes[, sort(names(top_genes))]
-write.csv(top_genes, "T_cell_SCT_Markers_res_0_3.csv", row.names = FALSE)
-saveRDS(T_cell, "T_cell_SCT.rds")
+T_annot <- DimPlot(T_cell, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+ggsave("T_cell_annot_0.25.pdf", plot = T_annot, device = "pdf", dpi = 300, width = 10, height = 8)
 ```
-
 
 ## Endothelial cells
 
@@ -126,66 +101,130 @@ p1
 # ggsave("EC_umap_anchor_pred.pdf", plot = p2, device = "pdf", dpi = 300, width = 10, height = 8)
 # 
 # # markers
-Ec_markers <- wilcoxauc(Ec, seurat_assay = "SCT","SCT_snn_res.0.2")
-top_genes <- top_markers(Ec_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
-top_genes <- top_genes[, sort(names(top_genes))]
-write.csv(top_genes, "Ec_Markers_res_0_2.csv", row.names = FALSE)
-#saveRDS(Ec, "Ec.rds")
-
+# Ec_markers <- wilcoxauc(Ec, seurat_assay = "SCT","SCT_snn_res.0.2")
+# top_genes <- top_markers(Ec_markers, n=300, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# top_genes <- top_genes[, sort(names(top_genes))]
+# write.csv(top_genes, "Ec_Markers_res_0_2.csv", row.names = FALSE)
+saveRDS(Ec, "Ec.rds")
 ```
 
 ```{r}
-EC_SCT <- SCTransform(EC_SCT, vars.to.regress = "percent.mt", verbose = TRUE, assay = "RNA")
-EC_SCT <- RunPCA(EC_SCT)
-EC_SCT <- FindNeighbors(EC_SCT,  reduction = "harmony", dims = 1:50)
-EC_SCT <- FindClusters(EC_SCT, algorithm = 4, method = "igraph" , resolution = 0.3)
-EC_SCT <- RunUMAP(EC_SCT, dims = 1:50)
-
-DimPlot(EC_SCT, reduction = "umap", label = TRUE, shuffle = T) + DimPlot(EC_SCT, reduction = "umap", group.by = "condition", label = TRUE, shuffle = T)
-
-EC_SCT_markers <- wilcoxauc(EC_SCT, seurat_assay = "SCT","SCT_snn_res.0.3")
-# set filtering params
-top_genes <- top_markers(EC_SCT_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
-top_genes <- top_genes[, sort(names(top_genes))]
-write.csv(top_genes, "EC_SCT_Markers_res_0_3.csv", row.names = FALSE)
-saveRDS(T_cell, "EC_SCT.rds")
+EC_manual <- c( "1" = "Homeostatic_EC",
+                          "2" = "Oncofetal_fatty_EC",
+                          "3" = "VEGF+_EC",
+                          "4" = "Prostaglandin+IL1R+_EC",
+                          "5" = "CD52+_EC",
+                          "6" = "Naive_B",
+                          "7" = "TCRsign_T"
+                          )
+Ec@meta.data$cell_subtype <- EC_manual[as.character(Ec@meta.data$SCT_snn_res.0.2)]
+Ec_annot <- DimPlot(Ec, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+ggsave("Ec_cell_annot_0.2.pdf", plot = Ec_annot, device = "pdf", dpi = 300, width = 10, height = 8)
 ```
 
+## SCT global version doesnt seem to be better
+
+```{r}
+# EC_SCT <- SCTransform(EC_SCT, vars.to.regress = "percent.mt", verbose = TRUE, assay = "RNA")
+# EC_SCT <- RunPCA(EC_SCT)
+# EC_SCT <- FindNeighbors(EC_SCT,  reduction = "harmony", dims = 1:50)
+# EC_SCT <- FindClusters(EC_SCT, algorithm = 4, method = "igraph" , resolution = 0.3)
+# EC_SCT <- RunUMAP(EC_SCT, dims = 1:50)
+# 
+# DimPlot(EC_SCT, reduction = "umap", label = TRUE, shuffle = T) + DimPlot(EC_SCT, reduction = "umap", group.by = "condition", label = TRUE, shuffle = T)
+# 
+# EC_SCT_markers <- wilcoxauc(EC_SCT, seurat_assay = "SCT","SCT_snn_res.0.3")
+# # set filtering params
+# top_genes <- top_markers(EC_SCT_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# top_genes <- top_genes[, sort(names(top_genes))]
+# write.csv(top_genes, "EC_SCT_Markers_res_0_3.csv", row.names = FALSE)
+# saveRDS(T_cell, "EC_SCT.rds")
+```
 
 ## Myeloid
 
 ```{r}
 Myelo <- FindNeighbors(Myelo, reduction = "harmony", dims = 1:50)
-Myelo <- FindClusters(Myelo, algorithm = 4, method = "igraph" , resolution = 0.3)
+Myelo <- FindClusters(Myelo, algorithm = 4, method = "igraph" , resolution = 0.6)
 Myelo <- RunUMAP(Myelo, dims = 1:50, assay = "SCT", reduction = "harmony")
 p1 <-DimPlot(Myelo, reduction = "umap", label = TRUE) + DimPlot(Myelo, reduction = "umap",group.by = "condition", label = TRUE)
 p2 <-DimPlot(Myelo, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
-
-# ggsave("Myelo_umap_0_3.pdf", plot = p1, device = "pdf", dpi = 300, width = 10, height = 8)
+p2
+# ggsave("Myelo_umap_0_6.pdf", plot = p1, device = "pdf", dpi = 300, width = 10, height = 8)
 # ggsave("Myelo_umap_anchor_pred.pdf", plot = p2, device = "pdf", dpi = 300, width = 10, height = 8)
-# # markers
-# Myelo_markers <- wilcoxauc(Myelo, seurat_assay = "SCT","SCT_snn_res.0.3")
-# top_genes <- top_markers(Myelo_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
-# top_genes <- top_genes[, sort(names(top_genes))]
-# write.csv(top_genes, "Myelo_Markers_res_0_3.csv", row.names = FALSE)
+# # # markers
+Myelo_markers <- wilcoxauc(Myelo, seurat_assay = "SCT","cell_subtype")
+top_genes <- top_markers(Myelo_markers, n = 200, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+top_genes <- top_genes[, sort(names(top_genes))]
+write.csv(top_genes, "Myelo_Markers_res_0_6.csv", row.names = FALSE)
+
 saveRDS(Myelo, "Myelo.rds")
 ```
+
+```{r}
+Myeloid_manual <- c( "1" = "IL1B+CCR2+_MDMs",
+                          "2" = "Stk10_Mono",
+                          "3" = "Ifitm3+_Mono",
+                          "4" = "CD38+ Apoe+_Mph",
+                          "5" = "Cxcl16+Apoe+_Mph",
+                          "6" = "cDC2s",
+                          "7" = "Prostaglandin+_KCs",
+                          "8" = "Malat1_Mono",
+                          "9" = "Mertk+_KCs",
+                          "10" = "cDC1s",
+                          "11" = "Migratory_DCs",
+                          "12" = "Prolif_DCs"
+                          )
+Myelo@meta.data$cell_subtype <- Myeloid_manual[as.character(Myelo@meta.data$SCT_snn_res.0.6)]
+
+myelo_annot <- DimPlot(Myelo, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+
+ggsave("Myelo_cell_annot_0.6.pdf", plot = myelo_annot, device = "pdf", dpi = 300, width = 10, height = 8)
+```
+```{r}
+Myelo$condition <- factor(Myelo$condition, levels = c('ctl', 'int', 'end'))
+vln <-VlnPlot(
+    object,
+    features="Trem2",
+    group.by = "cell_subtype",
+    split.by = "condition",
+    layer = "data"
+    )
+vln
+ggsave("Trem2Expression_myeloid.pdf", plot = vln, device = "pdf", dpi = 300, width = 10, height = 8)
+```
+
 
 ## Granules
 
 ```{r}
 Gran <- FindNeighbors(Gran, reduction = "harmony", dims = 1:50)
-Gran <- FindClusters(Gran, algorithm = 4, method = "igraph" , resolution = 0.07)
+Gran <- FindClusters(Gran, algorithm = 4, method = "igraph" , resolution = 0.6)
 Gran <- RunUMAP(Gran, dims = 1:50, assay = "SCT", reduction = "harmony")
 p1 <-DimPlot(Gran, reduction = "umap", label = TRUE) + DimPlot(Gran, reduction = "umap",group.by = "condition", label = TRUE)
 p2 <-DimPlot(Gran, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
-
-# # markers
-# Gran_markers <- wilcoxauc(Gran, seurat_assay = "SCT","SCT_snn_res.0.07")
-# top_genes <- top_markers(Gran_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+p1
+# ggsave("gran_umap_0_6.pdf", plot = p1, device = "pdf", dpi = 300, width = 10, height = 8)
+# # # markers
+# Gran_markers <- wilcoxauc(Gran, seurat_assay = "SCT","SCT_snn_res.0.6")
+# top_genes <- top_markers(Gran_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 10)
 # top_genes <- top_genes[, sort(names(top_genes))]
-# write.csv(top_genes, "Gran_Markers_res_0_07.csv", row.names = FALSE)
-saveRDS(Gran, "Gran.rds")
+# write.csv(top_genes, "Gran_Markers_res_0_06.csv", row.names = FALSE)
+# saveRDS(Gran, "Gran.rds")
+```
+
+```{r}
+Gran_manual <- c( "1" = "Cxcr2+Ccl6+_Neu ",
+                          "2" = "IL1B+_Neu",
+                          "3" = "IL1Ra+PD-L1+_Neu",
+                          "4" = "Tox+_Neu",
+                          "5" = "Retnlg_Neu",
+                          "6" = "Meis2_Neu"
+                          )
+Gran@meta.data$cell_subtype <- Gran_manual[as.character(Gran@meta.data$SCT_snn_res.0.6)]
+
+gran_annot <- DimPlot(Gran, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+ggsave("Gran_cell_annot_0.6.pdf", plot = gran_annot, device = "pdf", dpi = 300, width = 10, height = 8)
 ```
 
 ## Nk/T
@@ -196,14 +235,23 @@ NK_T <- FindClusters(NK_T, algorithm = 4, method = "igraph" , resolution = 0.3)
 NK_T <- RunUMAP(NK_T, dims = 1:50, assay = "SCT", reduction = "harmony")
 p1 <-DimPlot(NK_T, reduction = "umap", label = TRUE) + DimPlot(NK_T, reduction = "umap",group.by = "condition", label = TRUE)
 p2 <-DimPlot(NK_T, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
-
+p1
 
 # # markers
 # NK_markers <- wilcoxauc(NK_T, seurat_assay = "SCT","SCT_snn_res.0.3") 
 # top_genes <- top_markers(NK_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
 # top_genes <- top_genes[, sort(names(top_genes))]
 # write.csv(top_genes, "NK_Markers_res_0_3.csv", row.names = FALSE)
-saveRDS(NK_T, "NK_T.rds")
+#saveRDS(NK_T, "NK_T.rds")
+```
+
+```{r}
+NK_manual <- c( "1" = "Cytotoxic/Activated_NK",
+                          "2" = "Exhausted_NK",
+                          "3" = "Fatty_NK"
+                          )
+NK_T@meta.data$cell_subtype <- NK_manual[as.character(NK_T@meta.data$SCT_snn_res.0.3)]
+DimPlot(NK_T, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
 ```
 
 ## Plasma and other cells
@@ -220,8 +268,23 @@ p2 <-DimPlot(plasm, reduction = "umap", label = TRUE, shuffle = T, group.by = "a
 # top_genes <- top_markers(plasm_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
 # top_genes <- top_genes[, sort(names(top_genes))]
 # write.csv(top_genes, "Plasma_Markers_res_0_1.csv", row.names = FALSE)
-saveRDS(plasm, "plasm.rds")
+#saveRDS(plasm, "plasm.rds")
 ```
+
+```{r}
+plasm_manual <- c( "1" = "Igkc_Plasm",
+                          "2" = "Hmgb2_Plasm",
+                          "3" = "S100a6_Plasm",
+                          "4" = "Bnip3l_Plasm"
+                          )
+plasm@meta.data$cell_subtype <- plasm_manual[as.character(plasm@meta.data$SCT_snn_res.0.1)]
+
+plasm_annot <- DimPlot(plasm, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+
+ggsave("plasm_cell_annot_0.1.pdf", plot = plasm_annot, device = "pdf", dpi = 300, width = 10, height = 8)
+```
+
+## PDcs
 
 ```{r}
 pDCs <- FindNeighbors(pDCs, reduction = "harmony", dims = 1:50)
@@ -235,7 +298,17 @@ p1
 # top_genes <- top_markers(pDCs_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
 # top_genes <- top_genes[, sort(names(top_genes))]
 # write.csv(top_genes, "pDCs_Markers_res_0_13.csv", row.names = FALSE)
-saveRDS(pDCs, "pDCs.rds")
+#saveRDS(pDCs, "pDCs.rds")
+```
+
+```{r}
+pDCs_manual <- c( "1" = "Irf8+_pDCs",
+           "2" = "Foxp1+_pDCs"
+                          )
+pDCs@meta.data$cell_subtype <- pDCs_manual[as.character(pDCs@meta.data$SCT_snn_res.0.13)]
+pDCs_annot <- DimPlot(pDCs, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+
+ggsave("pDCs_annot_0.13.pdf", plot = pDCs_annot, device = "pdf", dpi = 300, width = 10, height = 8)
 ```
 
 ## B cells
@@ -255,7 +328,17 @@ p1
 # top_genes <- top_markers(B_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
 # top_genes <- top_genes[, sort(names(top_genes))]
 # write.csv(top_genes, "B_cell_Markers_res_0_08.csv", row.names = FALSE)
-saveRDS(B_cell, "B_cell.rds")
+#saveRDS(B_cell, "B_cell.rds")
+```
+
+```{r}
+B_manual <- c( "1" = "Activated_B",
+               "2" = "Naive/Early_Ly6D+_B",
+               "3" = "Foxp1+Very_early_B"
+               )
+B_cell@meta.data$cell_subtype <- B_manual[as.character(B_cell@meta.data$SCT_snn_res.0.08)]
+B_annot <- DimPlot(B_cell, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+ggsave("B_annot_0.08.pdf", plot = B_annot, device = "pdf", dpi = 300, width = 10, height = 8)
 ```
 
 ## hep/ tumor 1
@@ -276,7 +359,14 @@ p2
 # top_genes <- top_markers(HC1_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
 # top_genes <- top_genes[, sort(names(top_genes))]
 # write.csv(top_genes, "HC1_markers_0_06.csv", row.names = FALSE)
-saveRDS(HC1_cell, "HC1_cell.rds")
+#saveRDS(HC1_cell, "HC1_cell.rds")
+
+HC1_manual <- c( "1" = "Apoc1+Aldob+_Hep",
+                 "2" = "IL6ST+_Hep"
+               )
+HC1_cell@meta.data$cell_subtype <- HC1_manual[as.character(HC1_cell@meta.data$SCT_snn_res.0.06)]
+DimPlot(HC1_cell, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+
 ```
 
 ## hep/ tumor 2
@@ -295,7 +385,13 @@ DimPlot(HC2_cell, reduction = "umap", label = TRUE)
 # top_genes <- top_markers(HC2_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
 # top_genes <- top_genes[, sort(names(top_genes))]
 # write.csv(top_genes, "HC2_markers_0_15.csv", row.names = FALSE)
-saveRDS(HC2_cell, "HC2_cell.rds")
+#saveRDS(HC2_cell, "HC2_cell.rds")
+HC2_manual <- c( "1" = "Vegfa+_Hep",
+               "2" = "CD74+MHCII+_Hep",
+               "3" = "Serpina+_Hep"
+               )
+HC2_cell@meta.data$cell_subtype <- HC2_manual[as.character(HC2_cell@meta.data$SCT_snn_res.0.15)]
+DimPlot(HC2_cell, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
 ```
 
 ### Enrichment based on the dataset from oncofetal
@@ -385,12 +481,13 @@ colnames(MNC_mapping) <- c("human_gene", "mouse_gene")
 ```
 
 # Function to replace the gene names
+
 ```{r}
 replace_with_mouse <- function(human_gene_name, mapping_df) {
   mouse_genes <- mapping_df$mouse_gene[mapping_df$human_gene == human_gene_name]
   
   if(length(mouse_genes) == 0) {
-    return(NA)  # Return NA if no mouse gene is found or we can use the Human gene names / or we later input the ones manualy based on the new db
+    return(human_gene_name)  # Return NA if no mouse gene is found or we can use the Human gene names / or we later input the ones manualy based on the new db
   } else {
     return(paste(mouse_genes, collapse = ", "))
   }
@@ -406,15 +503,26 @@ MNC_df[] <- lapply(MNC_df, function(column) sapply(column, replace_with_mouse, m
 
 # Check the updated data frame
 print(EC_df)
-write.csv(EC_df, "EC_mouse.csv", row.names = FALSE)
-write.csv(MNC_df, "MNC_mouse.csv", row.names = FALSE)
+# write.csv(EC_df, "EC_mouse.csv", row.names = FALSE)
+# write.csv(MNC_df, "MNC_mouse.csv", row.names = FALSE)
 ```
-## Enrichment of EC based on oncofetal paper 
+
+## Enrichment of EC based on oncofetal paper
+
 ```{r}
 # Import my endothelial cell DGE markers
 EC_HCC <- read_csv("Ec_Markers_res_0_2.csv")
-EC_HCC <- EC_HCC[,c(-8)] # remove the rank column
-colnames(EC_HCC) <- c("cl1","cl2","cl3","cl4","cl5","cl6","cl7")  # my non annotated subclusters
+EC_HCC <- EC_HCC %>% dplyr::select(-rank) # remove the rank column
+
+### reorder the clusters based on numeric values in the colnames
+colnames_numeric <- as.numeric(gsub("\\D", "", colnames(EC_HCC)))
+# order the column names based on the numeric part
+ordered_colnames <- colnames(EC_HCC)[order(colnames_numeric)]
+# reorder
+EC_HCC <- EC_HCC[, ordered_colnames]
+
+new_colnames <- paste0("cl", seq_along(colnames(EC_HCC))) #instead of 1 2 3 put cl1,cl2/./
+colnames(EC_HCC) <- new_colnames # my non annotated subclusters  # my non annotated subclusters
 EC_HCC_list <- lapply(EC_HCC, as.vector) # transform the df into a list of vectors (each subcluster)
 
 
@@ -422,56 +530,516 @@ colnames(EC_df) <- c("0_PLPP3+EC", "1_PLPP3+EC", "2_CD9+EC", "3_PLVAP+EC", "4_PL
 
 signatures_list <- lapply(EC_df, as.vector)
 
-enrich_results <- hypeR(signatures_list, EC_HCC_list, test="hypergeometric", background=30000)
+enrich_results <- hypeR(signatures_list, EC_HCC_list, test="hypergeometric", background=23467)
+hyp_to_excel(enrich_results, file_path="enrich_results_EC_300markers.xlsx")
 
-hyp_to_excel(enrich_results, file_path="enrich_results_EC_100markers.xlsx")
+```
+
+## ####Use hyper R for enrichment analysis
+
+```{r}
+file_path <- "enrich_results_EC_300markers.xlsx"
+
+
+sheets <- excel_sheets(file_path)
+
+combined_df <- lapply(sheets, function(sheet) {
+  df <- read_excel(file_path, sheet = sheet)
+  df$sheet_name <- sheet
+  df
+}) %>% bind_rows()
+
+
+combined_df$fdr <- as.numeric(combined_df$fdr)
+
+# FDR < 0.05
+filtered_df <- combined_df %>% filter(fdr < 0.05)
+
+# curate the dataframe for plotting
+plot_df <- filtered_df %>% 
+  mutate(overlap_size = as.numeric(overlap)) %>% # change the 24 number based on the amount of signature
+  replace_na(list(overlap_size = 0))
+
+# PLOT the results
+EC_enrich <- ggplot(plot_df, aes(x = sheet_name, y = label)) +
+              geom_point(aes(size = overlap_size, color = fdr)) +
+              scale_size_continuous(range = c(2, 10)) +
+              scale_color_viridis_c(option = "magma", direction = -1) +
+              theme_minimal(base_family = "sans") +
+              theme(
+                plot.background = element_rect(fill = "white", color = NA),
+                panel.background = element_rect(fill = "grey60", color = NA),  
+                panel.grid.major = element_line(color = "grey100"),
+                panel.grid.minor = element_line(color = "grey80"),
+                axis.text.x = element_text(angle = 45, hjust = 1, color = "black"),
+                axis.text.y = element_text(color = "black"),
+                axis.title = element_text(color = "black"),
+                legend.background = element_rect(fill = "grey90", color = NA),
+                legend.key = element_rect(fill = "grey90", color = NA),
+                legend.title = element_text(size = 10, color = "black"),
+                legend.text = element_text(size = 10, color = "black"),
+                legend.key.size = unit(0.5, "cm"),  # Adjusted legend key size
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold", color = "black")  # Center the title
+              ) +
+              labs(
+                title = "Endothelial Cell Enrichment",
+                x = "Signature",
+                y = "Label",
+                size = "Overlap",
+                color = "FDR (<0.05)"
+              ) +
+              theme(
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+                axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+EC_enrich
+ggsave("EC_dotplot_Enrichment.pdf", plot = EC_enrich, device = "pdf", dpi = 300, width = 10, height = 7, units = "in")
+```
+
+## T-CELL enrichment
+
+Import the signature datasets
+
+```{r}
+# first T_cell signatures
+path1 <- ("SCT/intgr_indiv_SCT_harmony/Subclustering/T_cell_markers_enrichment/Tcellsignatures.xlsx")
+#Second signatures (should we combine them?)
+path2 <- ("SCT/intgr_indiv_SCT_harmony/Subclustering/T_cell_markers_enrichment/Tcellsignatures_Zheng_Zhang_summarised.xlsx")
+
+#LIPID ASSOCIATED MACROPHAGES-HUMAN
+path3 <- ("SCT/intgr_indiv_SCT_harmony/Subclustering/LAMS_markers_enrichment/mmc6.xlsx")
+
+T_cell_sign <- read_excel(path1)
+T_cell_sign_zheng <- read_excel(path2)
+
+
+lams <- read_excel(path3)
+# filter from l2fc 1.3 and up (includes all the main signatures), from human fc lams >= 1.3
+# lams <- lams %>%
+#   filter(log2fcMac3vsMac1>=1.3)%>%
+#   filter(pval < 0.05)
+lams <- lams %>%
+  filter(fcLAMvsMacHuman>=1.3)
+        
+  
+        
+lams <- unique(as.vector(lams$gene))
+        
+```
+
+Map the human to mouse cells
+
+```{r}
+Tcell_1 <- unique(as.vector(as.matrix(T_cell_sign)))
+Tcell_2 <- unique(as.vector(as.matrix(T_cell_sign_zheng)))
+
+human <- useMart("ensembl", dataset = "hsapiens_gene_ensembl", host = "https://dec2021.archive.ensembl.org/") # human
+mouse <- useMart("ensembl", dataset = "mmusculus_gene_ensembl", host = "https://dec2021.archive.ensembl.org/")
+```
+
+```{r}
+Tcell_1_mapping <- getLDS(
+  attributes = c("hgnc_symbol"), # Use human gene symbols as the attribute
+  filters = "hgnc_symbol", # Use human gene symbols as the filter
+  values = Tcell_1, # Your list of human gene symbols
+  mart = human, # Human mart
+  attributesL = c("mgi_symbol"), # Retrieve mouse gene symbols
+  martL = mouse, # Mouse mart
+  uniqueRows = TRUE
+)
+
+Tcell_2_mapping <- getLDS(
+  attributes = c("hgnc_symbol"), # Use human gene symbols as the attribute
+  filters = "hgnc_symbol", # Use human gene symbols as the filter
+  values = Tcell_2, # Your list of human gene symbols
+  mart = human, # Human mart
+  attributesL = c("mgi_symbol"), # Retrieve mouse gene symbols
+  martL = mouse, # Mouse mart
+  uniqueRows = TRUE
+)
+
+Lams_mapping <- getLDS(
+  attributes = c("hgnc_symbol"), # Use human gene symbols as the attribute
+  filters = "hgnc_symbol", # Use human gene symbols as the filter
+  values = lams, # Your list of human gene symbols
+  mart = human, # Human mart
+  attributesL = c("mgi_symbol"), # Retrieve mouse gene symbols
+  martL = mouse, # Mouse mart
+  uniqueRows = TRUE
+)
+
+
+colnames(Tcell_1_mapping) <- c("human_gene", "mouse_gene")
+colnames(Tcell_2_mapping) <- c("human_gene", "mouse_gene")
+
+colnames(Lams_mapping) <- c("human_gene", "mouse_gene")
+```
+
+## Here i call the function i made in the previous EC enrichment
+
+Run first the function : replace_with_mouse
+
+```{r}
+T_cell_sign[] <- lapply(T_cell_sign, function(column) sapply(column, replace_with_mouse, mapping_df = Tcell_1_mapping))
+
+T_cell_sign_zheng[] <- lapply(T_cell_sign_zheng, function(column) sapply(column, replace_with_mouse, mapping_df = Tcell_2_mapping))
+
+lams <- Lams_mapping$mouse_gene
+
+
+# Check the updated data frame
+print(lams)
+```
+
+## HypeR and plots
+
+```{r}
+Tcell_HCC <- read_csv("T_cell_450Markers_res_0_25.csv")
+Tcell_HCC <- Tcell_HCC %>% dplyr::select(-rank) # remove the rank column !!!!
+
+
+
+### reorder the clusters based on numeric values in the colnames
+colnames_numeric <- as.numeric(gsub("\\D", "", colnames(Tcell_HCC)))
+
+# order the column names based on the numeric part
+ordered_colnames <- colnames(Tcell_HCC)[order(colnames_numeric)]
+
+# reorder
+Tcell_HCC <- Tcell_HCC[, ordered_colnames]
+
+new_colnames <- paste0("cl", seq_along(colnames(Tcell_HCC))) #instead of 1 2 3 put cl1,cl2/./
+colnames(Tcell_HCC) <- new_colnames # my non annotated subclusters
+
+
+Tcell_HCC <- lapply(Tcell_HCC, as.vector) # transform the df into a list of vectors (each subcluster)
+
+
+
+signatures_list_1 <- lapply(T_cell_sign, as.vector)
+signatures_list_2_zheng <- lapply(T_cell_sign_zheng, as.vector)
+
+##hypeR
+T_cell_enrich_results <- hypeR(signatures_list_1, Tcell_HCC, test="hypergeometric", background=23467)
+
+T_cell_zheng_enrich_results <- hypeR(signatures_list_2_zheng, Tcell_HCC, test="hypergeometric", background=23467)
+
+hyp_to_excel(T_cell_enrich_results, file_path="enrich_results_T_300markers.xlsx")
+hyp_to_excel(T_cell_zheng_enrich_results, file_path="enrich_results_T_Zheng_450markers_0_25res.xlsx")
+
+```
+
+```{r}
+myeloid_HCC <- read_csv("Myelo_Markers_res_0_6.csv")
+myeloid_HCC <- myeloid_HCC %>% dplyr::select(-rank) # remove the rank column !!!!
+
+
+myeloid_hcc <- lapply(myeloid_HCC, as.vector) # transform the df into a list of vectors (each subcluster)
+
+
+##hypeR
+Myeloid_cell_enrich_results <- hypeR(lams, myeloid_hcc, test="hypergeometric", background=23467)
+
+
+
+hyp_to_excel(Myeloid_cell_enrich_results, file_path="enrich_results_Myeloid_200markers.xlsx")
+file_path <- "enrich_results_Myeloid_200markers.xlsx"
+sheets <- excel_sheets(file_path)
+
+combined_df <- lapply(sheets, function(sheet) {
+  df <- read_excel(file_path, sheet = sheet)
+  df$sheet_name <- sheet
+  df
+}) %>% bind_rows()
+# FDR < 0.05
+filtered_df <- combined_df %>% filter(fdr < 0.05)
+plot_df <- filtered_df %>% 
+  mutate(overlap_size = as.numeric(overlap)) %>% # change the 24 number based on the amount of signature
+  replace_na(list(overlap_size = 0))
+
+# PLOT the results
+myeloid_enrich <- ggplot(plot_df, aes(x = sheet_name, y = label)) +
+              geom_point(aes(size = overlap_size, color = fdr)) +
+              scale_size_continuous(range = c(2, 10)) +
+              scale_color_viridis_c(option = "magma", direction = -1) +
+              theme_minimal(base_family = "sans") +
+              theme(
+                plot.background = element_rect(fill = "white", color = NA),
+                panel.background = element_rect(fill = "grey60", color = NA),  
+                panel.grid.major = element_line(color = "grey100"),
+                panel.grid.minor = element_line(color = "grey80"),
+                axis.text.x = element_text(angle = 45, hjust = 1, color = "black"),
+                axis.text.y = element_text(color = "black"),
+                axis.title = element_text(color = "black"),
+                legend.background = element_rect(fill = "grey90", color = NA),
+                legend.key = element_rect(fill = "grey90", color = NA),
+                legend.title = element_text(size = 10, color = "black"),
+                legend.text = element_text(size = 10, color = "black"),
+                legend.key.size = unit(0.5, "cm"),  # Adjusted legend key size
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold", color = "black")  # Center the title
+              ) +
+              labs(
+                title = "Human LAMs Enrichment",
+                x = "Signature",
+                y = "Label",
+                size = "Overlap",
+                color = "FDR (<0.05)"
+              ) +
+              theme(
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+                axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+myeloid_enrich
+ggsave("Human_Lams_Enrichment.pdf", plot = myeloid_enrich, device = "pdf", dpi = 300, width = 10, height = 7, units = "in")
 ```
 
 
-## Use hyper R for enrichment analysis 
+```{r}
+
+file_path <- "enrich_results_T_Zheng_450markers_0_25res.xlsx"
+
+
+sheets <- excel_sheets(file_path)
+
+combined_df <- lapply(sheets, function(sheet) {
+  df <- read_excel(file_path, sheet = sheet)
+  df$sheet_name <- sheet
+  df
+}) %>% bind_rows()
+
+
+combined_df$fdr <- as.numeric(combined_df$fdr)
+
+# FDR < 0.05
+filtered_df <- combined_df %>% filter(fdr < 0.05)
+
+# curate the dataframe for plotting
+plot_df <- filtered_df %>% 
+  mutate(overlap_size = as.numeric(overlap)) %>% # change the 24 number based on the amount of signature
+  replace_na(list(overlap_size = 0))
+
+# PLOT the results
+T_enrich <- ggplot(plot_df, aes(x = sheet_name, y = label)) +
+              geom_point(aes(size = overlap_size, color = fdr)) +
+              scale_size_continuous(range = c(2, 10)) +
+              scale_color_viridis_c(option = "magma", direction = -1) +
+              theme_minimal(base_family = "sans") +
+              theme(
+                plot.background = element_rect(fill = "white", color = NA),
+                panel.background = element_rect(fill = "grey60", color = NA),  
+                panel.grid.major = element_line(color = "grey100"),
+                panel.grid.minor = element_line(color = "grey80"),
+                axis.text.x = element_text(angle = 45, hjust = 1, color = "black"),
+                axis.text.y = element_text(color = "black"),
+                axis.title = element_text(color = "black"),
+                legend.background = element_rect(fill = "grey90", color = NA),
+                legend.key = element_rect(fill = "grey90", color = NA),
+                legend.title = element_text(size = 10, color = "black"),
+                legend.text = element_text(size = 10, color = "black"),
+                legend.key.size = unit(0.5, "cm"),  # Adjusted legend key size
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold", color = "black")  # Center the title
+              ) +
+              labs(
+                title = "T Cell Enrichment",
+                x = "Signature",
+                y = "Label",
+                size = "Overlap",
+                color = "FDR (<0.05)"
+              ) +
+              theme(
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+                axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+T_enrich
+ggsave("T_dotplot_Enrichment_1.pdf", plot = T_enrich, device = "pdf", dpi = 300, width = 10, height = 7, units = "in")
+```
+
+# Generate the plot from 2nd T_cell signatures
 
 ```{r}
-library(viridis)
-# Plot dots plot
-p1<- hyp_dots(enrich_results, merge=TRUE, fdr = 0.05, size_by= "significance")
+file_path <- "enrich_results_T_Zheng_300markers.xlsx"
 
-p1 <- p1 +
-  scale_color_viridis_c(option = "magenda", direction = -1, guide = guide_colorbar(reverse = T)) +
-  theme_minimal(base_family = "sans") +
+
+sheets <- excel_sheets(file_path)
+
+combined_df <- lapply(sheets, function(sheet) {
+  df <- read_excel(file_path, sheet = sheet)
+  df$sheet_name <- sheet
+  df
+}) %>% bind_rows()
+
+
+combined_df$fdr <- as.numeric(combined_df$fdr)
+
+# FDR < 0.05
+filtered_df <- combined_df %>% filter(fdr < 0.05)
+
+# curate the dataframe for plotting
+plot_df <- filtered_df %>% 
+  mutate(overlap_size = as.numeric(overlap)) %>% # change the 24 number based on the amount of signature
+  replace_na(list(overlap_size = 0))
+
+# PLOT the results
+T_enrich_2 <- ggplot(plot_df, aes(x = sheet_name, y = label)) +
+              geom_point(aes(size = overlap_size, color = fdr)) +
+              scale_size_continuous(range = c(2, 10)) +
+              scale_color_viridis_c(option = "magma", direction = -1) +
+              theme_minimal(base_family = "sans") +
+              theme(
+                plot.background = element_rect(fill = "white", color = NA),
+                panel.background = element_rect(fill = "grey60", color = NA),  
+                panel.grid.major = element_line(color = "grey100"),
+                panel.grid.minor = element_line(color = "grey80"),
+                axis.text.x = element_text(angle = 45, hjust = 1, color = "black"),
+                axis.text.y = element_text(color = "black"),
+                axis.title = element_text(color = "black"),
+                legend.background = element_rect(fill = "grey90", color = NA),
+                legend.key = element_rect(fill = "grey90", color = NA),
+                legend.title = element_text(size = 10, color = "black"),
+                legend.text = element_text(size = 10, color = "black"),
+                legend.key.size = unit(0.5, "cm"),  # Adjusted legend key size
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold", color = "black")  # Center the title
+              ) +
+              labs(
+                title = "T Cell Enrichment",
+                x = "Signature",
+                y = "Label",
+                size = "Overlap",
+                color = "FDR (<0.05)"
+              ) +
+              theme(
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+                axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+T_enrich_2
+ggsave("T_dotplot_Enrichment_2_Zheng.pdf", plot = T_enrich_2, device = "pdf", dpi = 300, width = 10, height = 7, units = "in")
+
+
+```
+
+```{r}
+# Default
+hyp_dots(T_cell_enrich_results, fdr = 0.05, size_by = "significance", merge = F)
+```
+
+```{r}
+
+```
+
+
+### After Succesfull annotation we put the metdata information to the original object
+
+```{r}
+meta1 <- T_cell@meta.data[, "cell_subtype", drop = FALSE]
+meta2 <- NK_T@meta.data[, "cell_subtype", drop = FALSE]
+meta3 <- Ec@meta.data[, "cell_subtype", drop = FALSE]
+meta4 <- Myelo@meta.data[, "cell_subtype", drop = FALSE]
+meta5 <- Gran@meta.data[, "cell_subtype", drop = FALSE]
+meta6 <- B_cell@meta.data[, "cell_subtype", drop = FALSE]
+meta7 <- plasm@meta.data[, "cell_subtype", drop = FALSE]
+meta8 <- pDCs@meta.data[, "cell_subtype", drop = FALSE]
+meta9 <- HC1_cell@meta.data[, "cell_subtype", drop = FALSE]
+meta10 <- HC2_cell@meta.data[, "cell_subtype", drop = FALSE]
+
+combined_meta <- rbind(meta1, meta2, meta3, meta4, meta5, meta6, meta7, meta8, meta9 , meta10)
+
+object <- AddMetaData(object, metadata = combined_meta, col.name = "cell_subtype")
+
+Idents(object = object) <- "cell_subtypes"
+object <- factor(object$condition, levels = c('ctl', 'int', 'end'))
+saveRDS(object, file= "subcluster_annotated_RasV.rds")
+
+```
+
+```{r}
+annot_umap <- DimPlot(object, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+annot_umap
+#ggsave("Subcluster_annotated_RasV.pdf", plot = annot_umap, device = "pdf", dpi = 300, width = 16, height = 8)
+```
+
+```{r}
+metadata <- T_cell@meta.data
+# percentage of cells for each subcluster, condition, and batch/repl
+percentage_data <- metadata %>%
+  group_by(cell_subtype, condition) %>%
+  summarize(count = n(), .groups = 'drop') %>%
+  group_by(cell_subtype) %>%
+  mutate(total_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(percentage = (count / total_count) * 100)
+
+
+# reorder for plotting
+condition_order <- c("ctl", "int", "end")
+percentage_data$condition <- factor(percentage_data$condition, levels = condition_order)
+custom_colors <- c("end" = "#00BA38", "int" = "#619CFF", "ctl" = "#F8766D")#F8766D
+
+condition_order <- c("ctl", "int", "end")
+
+# Reorder conditions in percentage_data
+percentage_data$condition <- factor(percentage_data$condition, levels = condition_order)
+
+plots <- percentage_data %>%
+  ggplot(aes(x = condition, y = percentage, fill = condition)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
+  facet_wrap(~ cell_subtype) +
+  theme_minimal() +
+  labs(title = "Percentage of Cells by Condition for B cell Subtypes",
+       x = "Condition",
+       y = "Mean Percentage of Cells ± SD",
+       fill = "Condition") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1))+
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+# Print the plot
+print(plots)
+ggsave("B_cell_subcluster_barplot.pdf", plot = plots, device = "pdf", dpi = 300, width = 10, height = 8)
+```
+## Box plot for better representation
+
+```{r}
+metadata <- NK_T@meta.data
+# percentage of cells for each subcluster, condition, and batch/repl
+percentage_data <- metadata %>%
+  group_by(cell_subtype, condition, batch) %>%
+  summarize(count = n(), .groups = 'drop') %>%
+  group_by(cell_subtype) %>%
+  mutate(total_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(percentage = (count / total_count) * 100)
+
+
+# reorder for plotting
+condition_order <- c("ctl", "int", "end")
+percentage_data$condition <- factor(percentage_data$condition, levels = condition_order)
+custom_colors <- c("end" = "#00BA38", "int" = "#619CFF", "ctl" = "#F8766D")#F8766D
+
+plots <- percentage_data %>%
+  ggplot(aes(x = condition, y = percentage, fill = condition)) +
+  geom_boxplot(position = position_dodge(width = 0.9), alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.5, size = 0.5) +
+  stat_summary(fun = mean, geom = "point", shape = 21, size = 2, color = "black", fill = "white") +
+  facet_wrap(~ cell_subtype) +
+  theme_minimal() +
   theme(
-    plot.background = element_rect(fill = "black", color = NA),
-    panel.background = element_rect(fill = "grey30", color = NA),
-    panel.grid.major = element_line(color = "black"),
-    panel.grid.minor = element_line(color = "grey20"),
-    axis.text.x = element_text(angle = 45, hjust = 1, color = "white"),
-    axis.text.y = element_text(color = "white"),
-    axis.title = element_text(color = "white"),
-    legend.background = element_rect(fill = "black", color = NA),
-    legend.key = element_rect(fill = "white", color = NA),
-    legend.title = element_text(size = 10, color = "white"),
-    legend.text = element_text(size = 10, color = "white"),
-    legend.key.size = unit(0.5, "cm"),  # Adjusted legend key size
-    plot.title = element_text(hjust = 0.5, size = 14, face = "bold", color = "white")  # Center the title and style it
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+    axis.title = element_text(face = "bold", size = 12),
+    axis.text = element_text(size = 10),
+    strip.text = element_text(face = "bold", size = 12),
+    legend.position = "none"
   ) +
-  labs(color = "FDR", size = "Significance") +
-  ggtitle("Endothelial Cells Enrichment")
-p1
-
-ggsave("EC_dorplot_Enrichment.pdf", plot = p1, device = "pdf", dpi = 300, width = 10, height = 7, units = "in")
-hyp_hmap(enrich_results, top = 10)
-
-
-```
+  labs(title = "Percentage of Cells by Condition for NK cells Subtypes",
+       x = "Condition",
+       y = "Percentage of Cells") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1))+
+  scale_fill_manual(values = custom_colors) #  custom colors
 
 
-```{r}
-```
 
 
-```{r}
-```
+print(plots)
+ggsave("Nk_cell_subcluster_boxplot.pdf", plot = plots, device = "pdf", dpi = 300, width = 10, height = 8)
 
-
-```{r}
 ```
 
