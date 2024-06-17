@@ -1,0 +1,376 @@
+---
+title: "Multinichenet output analysis"
+output: html_notebook
+---
+
+
+```{r}
+library(SingleCellExperiment)
+library(dplyr)
+library(ggplot2)
+library(nichenetr)
+library(multinichenetr)
+library(Seurat)
+```
+
+#We will look here at the top 50 predictions across all contrasts, senders, and receivers of interest.
+```{r}
+prioritized_tbl_oi_all = get_top_n_lr_pairs(
+  multinichenet_output$prioritization_tables, 
+  top_n = 50, 
+  rank_per_group = FALSE
+  )
+```
+
+```{r}
+prioritized_tbl_oi = 
+  multinichenet_output$prioritization_tables$group_prioritization_tbl %>%
+  filter(id %in% prioritized_tbl_oi_all$id) %>%
+  distinct(id, sender, receiver, ligand, receptor, group) %>% 
+  left_join(prioritized_tbl_oi_all)
+prioritized_tbl_oi$prioritization_score[is.na(prioritized_tbl_oi$prioritization_score)] = 0
+
+senders_receivers = union(prioritized_tbl_oi$sender %>% unique(), prioritized_tbl_oi$receiver %>% unique()) %>% sort()
+
+colors_sender = RColorBrewer::brewer.pal(n = length(senders_receivers), name = 'Spectral') %>% magrittr::set_names(senders_receivers)
+colors_receiver = RColorBrewer::brewer.pal(n = length(senders_receivers), name = 'Spectral') %>% magrittr::set_names(senders_receivers)
+
+circos_list = make_circos_group_comparison(prioritized_tbl_oi, colors_sender, colors_receiver)
+
+#RColorBrewer::display.brewer.all()
+```
+```{r}
+DimPlot(Sc_filtered, group.by = "condition",shuffle = T)
+
+group_oi = "end" # put group of interest here, e.g. "ctl"
+prioritized_tbl_oi_M_50 = prioritized_tbl_oi_all %>% 
+  filter(group == group_oi)
+plot_oi = make_sample_lr_prod_activity_plots_Omnipath(
+  multinichenet_output$prioritization_tables, 
+  prioritized_tbl_oi_M_50 %>% inner_join(lr_network_all)
+  )
+plot_oi
+
+ggsave("multiniche_output/int_end/int_50top.pdf", plot_oi, width = 10, height = 10,dpi = 300)
+```
+
+```{r}
+group_oi = "end"
+prioritized_tbl_oi_S_50 = prioritized_tbl_oi_all %>% 
+  filter(group == group_oi) 
+plot_oi = make_sample_lr_prod_activity_plots_Omnipath(
+  multinichenet_output$prioritization_tables, 
+  prioritized_tbl_oi_S_50 %>% inner_join(lr_network_all)
+)
+plot_oi
+```
+
+```{r}
+group_oi = "ctl"
+prioritized_tbl_oi_A_50 = prioritized_tbl_oi_all %>% 
+  filter(group == group_oi) 
+plot_oi = make_sample_lr_prod_activity_plots_Omnipath(
+  multinichenet_output$prioritization_tables, 
+  prioritized_tbl_oi_A_50 %>% inner_join(lr_network_all)
+)
+plot_oi
+```
+
+```{r}
+# As you could observe from the Circos ChordDiagram and Interpretable Bubble plots above: we find more specific interactions for the one-group than for the other. If you want to visualize more interactions specific for a group of interest, so not restricted to e.g. the top50 overall, but the top50 for a group of interest, you can run the following:
+
+group_oi = "int"
+prioritized_tbl_oi_A_50 = get_top_n_lr_pairs(
+  multinichenet_output$prioritization_tables, 
+  50, 
+  groups_oi = group_oi) 
+plot_oi = make_sample_lr_prod_activity_plots_Omnipath(
+  multinichenet_output$prioritization_tables, 
+  prioritized_tbl_oi_A_50 %>% inner_join(lr_network_all)
+)
+plot_oi
+
+ggsave("multiniche_output/int_end/int_50top_group_interest.pdf", plot_oi, width = 10, height = 10,dpi = 300)
+```
+
+```{r}
+# Typically, there are way more than 50 differentially expressed and active ligand-receptor pairs per group across all sender-receiver combinations. Therefore it might be useful to zoom in on specific cell types as senders/receivers:
+# We will illustrate this for the "M_Monocyte_CD16" cell type as receiver in the M group:
+
+group_oi = "int"
+
+cell_list = c("EC", "T", "Mph", "KCs", "MDMs", "Mono", "DCs", "HEP1.C", "Fib") ## add the cells we did the analysis with (cells_to_keep)
+
+for (receiver_oi in cell_list) {
+  
+  # Get the top 50 ligand-receptor pairs for the current receiver
+  prioritized_tbl_oi = get_top_n_lr_pairs(
+    multinichenet_output$prioritization_tables, 
+    50, 
+    groups_oi = group_oi, 
+    receivers_oi = receiver_oi
+  ) 
+  
+  
+  plot_oi = make_sample_lr_prod_activity_plots_Omnipath(
+    multinichenet_output$prioritization_tables, 
+    prioritized_tbl_oi %>% inner_join(lr_network_all)
+  )
+  
+  
+  print(plot_oi)
+  
+  # Save the plot to a PDF file with the receiver's name
+  file_name = paste0("multiniche_output/int_end/int_50top_", receiver_oi, "_receivers.pdf")
+  ggsave(file_name, plot_oi, width = 10, height = 10, dpi = 300)
+}
+```
+
+```{r}
+# And now as sender:
+
+for (senders_oi in cell_list) {
+  
+   # Get the top 50 ligand-receptor pairs for the current receiver
+    prioritized_tbl_oi_M_50 = get_top_n_lr_pairs(
+      multinichenet_output$prioritization_tables, 
+      50, 
+      groups_oi = group_oi, 
+      senders_oi = senders_oi)
+      plot_oi = make_sample_lr_prod_activity_plots_Omnipath(
+      multinichenet_output$prioritization_tables, 
+      prioritized_tbl_oi_M_50 %>% inner_join(lr_network_all))
+  
+  
+    print(plot_oi)
+    
+  # Save the plot to a PDF file with the receiver's name
+    file_name = paste0("multiniche_output/int_end/int_50top_", senders_oi, "_senders.pdf")
+    ggsave(file_name, plot_oi, width = 10, height = 10, dpi = 300)
+}
+```
+#Visualization of differential ligand-target links
+Without filtering of target genes based on LR-target expression correlation
+In another type of plot, we can visualize the ligand activities for a group-receiver combination, and show the predicted ligand-target links, and also the expression of the predicted target genes across samples.
+
+For this, we now need to define a receiver cell type of interest. As example, we will take CLEC9A cells as receiver, and look at the top 10 sender Ligand-receiverReceptor pairs with these cells as receiver.
+
+```{r}
+
+for (receiver_oi in cell_list) {
+  
+  # Get the top 10 ligand-receptor pairs for the current receiver
+  prioritized_tbl_oi_Tumor_10 = get_top_n_lr_pairs(
+    multinichenet_output$prioritization_tables, 
+    20, 
+    groups_oi = group_oi, 
+    receivers_oi = receiver_oi
+  ) 
+  
+  # Create the combined plot
+  combined_plot = make_ligand_activity_target_plot(
+    group_oi, 
+    receiver_oi, 
+    prioritized_tbl_oi_Tumor_10,
+    multinichenet_output$prioritization_tables, 
+    multinichenet_output$ligand_activities_targets_DEgenes, contrast_tbl, 
+    multinichenet_output$grouping_tbl, 
+    multinichenet_output$celltype_info, 
+    ligand_target_matrix, 
+    plot_legend = FALSE
+  )
+
+  # Display the first part of the combined plot (optional)
+  print(combined_plot)
+  
+  # Save the plot to a PDF file with the receiver's name
+  file_name = paste0("multiniche_output/ctl_int/", receiver_oi, "_ligand_target_bars.pdf")
+  ggsave(file_name, width = 19, height = 13, dpi = 300)
+}
+```
+
+
+## In case we are interested in specific ligand and want to find the downstream genes
+```{r}
+group_oi = "int"
+receiver_oi = "EC"
+ligands_oi = "Tgfb1" # add here the ligand
+prioritized_tbl_ligands_oi = get_top_n_lr_pairs(
+  multinichenet_output$prioritization_tables, 
+  10000, 
+  groups_oi = group_oi, 
+  receivers_oi = receiver_oi
+  ) %>% filter(ligand %in% ligands_oi) # ligands should still be in the output tables of course
+
+prioritized_tbl_ligands_oi
+
+combined_plot = make_ligand_activity_target_plot(
+  group_oi, 
+  receiver_oi, 
+  prioritized_tbl_ligands_oi, 
+  multinichenet_output$prioritization_tables, 
+  multinichenet_output$ligand_activities_targets_DEgenes, 
+  contrast_tbl, 
+  multinichenet_output$grouping_tbl, 
+  multinichenet_output$celltype_info, 
+  ligand_target_matrix, 
+  plot_legend = FALSE)
+combined_plot
+```
+
+
+# With filtering of target genes based on LR-target expression correlation
+In the previous plots, target genes were shown that are predicted as target gene of ligands based on prior knowledge. However, we can use the multi-sample nature of this data to filter target genes based on expression correlation between the upstream ligand-receptor pair and the downstream target gene. We will filter out correlated ligand-receptor --> target links that both show high expression correlation (spearman or pearson correlation > 0.50 in this example) and have some prior knowledge to support their link. Note that you can only make these visualization if you ran step 7 of the core MultiNicheNet analysis.
+
+
+```{r}
+group_oi = "end"
+for (receiver_oi in cell_list) {
+  
+  # Filter and prepare the data
+  lr_target_prior_cor_filtered = multinichenet_output$lr_target_prior_cor %>%
+    inner_join(
+      multinichenet_output$ligand_activities_targets_DEgenes$ligand_activities %>% 
+        distinct(ligand, target, direction_regulation, contrast)
+    ) %>% 
+    inner_join(contrast_tbl) %>% filter(group == group_oi, receiver == receiver_oi)
+  
+  lr_target_prior_cor_filtered_up = lr_target_prior_cor_filtered %>% 
+    filter(direction_regulation == "up") %>% 
+    filter((rank_of_target < top_n_target) & (pearson > 0.50 | spearman > 0.50))
+  
+  lr_target_prior_cor_filtered_down = lr_target_prior_cor_filtered %>% 
+    filter(direction_regulation == "down") %>% 
+    filter((rank_of_target < top_n_target) & (pearson < -0.50 | spearman < -0.50)) # downregulation -- negative correlation
+  
+  lr_target_prior_cor_filtered = bind_rows(
+    lr_target_prior_cor_filtered_up, 
+    lr_target_prior_cor_filtered_down)
+  
+  # Get the top 50 ligand-receptor pairs for the current receiver
+  prioritized_tbl_oi = get_top_n_lr_pairs(
+    multinichenet_output$prioritization_tables, 
+    50, 
+    groups_oi = group_oi, 
+    receivers_oi = receiver_oi)
+  #Now we will visualize the top correlated target genes for the LR pairs that are also in the top 50 LR pairs discriminating the groups from each other
+  # Create the correlation plot
+  lr_target_correlation_plot = make_lr_target_correlation_plot(
+    multinichenet_output$prioritization_tables, 
+    prioritized_tbl_oi,  
+    lr_target_prior_cor_filtered, 
+    multinichenet_output$grouping_tbl, 
+    multinichenet_output$celltype_info, 
+    receiver_oi,
+    plot_legend = FALSE)
+  
+  # Display the combined plot (optional)
+  print(lr_target_correlation_plot$combined_plot)
+  
+  # Save the plot to a PDF file with the receiver's name
+  file_name = paste0("multiniche_output/int_end/correlationplot/", receiver_oi, "_end_ligand_target_correlation.pdf")
+  ggsave(file_name, lr_target_correlation_plot$combined_plot, width = 19, height = 13, dpi = 300)
+}
+```
+
+
+
+visualize the expression correlation in the following way for a selected LR pair and their targets:
+
+```{r}
+ligand_oi = "Tgfb1"
+receptor_oi = "Tgfbr3"
+sender_oi = c("Mono","Mph")
+receiver_oi = "EC"
+
+lr_target_scatter_plot = make_lr_target_scatter_plot(
+  multinichenet_output$prioritization_tables, 
+  ligand_oi, receptor_oi, sender_oi, receiver_oi, 
+  multinichenet_output$celltype_info, 
+  multinichenet_output$grouping_tbl, 
+  lr_target_prior_cor_filtered)
+
+lr_target_scatter_plot
+```
+
+
+
+# Next chapt ,Intercellular regulatory network inference and visualization
+
+In the plots before, we demonstrated that some DE genes have both expression correlation and prior knowledge support to be downstream of ligand-receptor pairs. Interestingly, some target genes can be ligands or receptors themselves. This illustrates that cells can send signals to other cells, who as a response to these signals produce signals themselves to feedback to the original sender cells, or who will effect other cell types.
+
+As last plot, we can generate a 'systems' view of these intercellular feedback and cascade processes than can be occuring between the different cell populations involved. In this plot, we will draw links between ligands of sender cell types their ligand/receptor-annotated target genes in receiver cell types. So links are ###ligand-target links (= gene regulatory links) and not ligand-receptor protein-protein interactions#####! We will infer this intercellular regulatory network here for the top50 interactions. You can increase this to include more hits of course (recommended).
+
+```{r}
+prioritized_tbl_oi = get_top_n_lr_pairs(
+  multinichenet_output$prioritization_tables, 
+  150, 
+  rank_per_group = FALSE)
+
+lr_target_prior_cor_filtered = 
+  multinichenet_output$prioritization_tables$group_prioritization_tbl$group %>% unique() %>% 
+  lapply(function(group_oi){
+    lr_target_prior_cor_filtered = multinichenet_output$lr_target_prior_cor %>%
+      inner_join(
+        multinichenet_output$ligand_activities_targets_DEgenes$ligand_activities %>%
+          distinct(ligand, target, direction_regulation, contrast)
+        ) %>% 
+      inner_join(contrast_tbl) %>% filter(group == group_oi)
+    
+    lr_target_prior_cor_filtered_up = lr_target_prior_cor_filtered %>% 
+      filter(direction_regulation == "up") %>% 
+      filter( (rank_of_target < top_n_target) & (pearson > 0.50 | spearman > 0.50))
+    
+    lr_target_prior_cor_filtered_down = lr_target_prior_cor_filtered %>% 
+      filter(direction_regulation == "down") %>% 
+      filter( (rank_of_target < top_n_target) & (pearson < -0.50 | spearman < -0.50))
+    lr_target_prior_cor_filtered = bind_rows(
+      lr_target_prior_cor_filtered_up, 
+      lr_target_prior_cor_filtered_down
+      )
+}) %>% bind_rows()
+
+lr_target_df = lr_target_prior_cor_filtered %>% 
+  distinct(group, sender, receiver, ligand, receptor, id, target, direction_regulation) 
+```
+
+```{r}
+network = infer_intercellular_regulatory_network(lr_target_df, prioritized_tbl_oi)
+network$links %>% head()
+```
+
+```{r}
+network_graph = visualize_network(network, colors_sender)
+network_graph$plot
+
+ggsave("multiniche_output/multicontrast_all_cells//output/intercellular_regulatory_network.pdf", network_graph$plot, width = 21, height = 13,dpi = 300)
+```
+
+# Interestingly, we can also use this network to further prioritize differential CCC interactions. Here we will assume that the most important LR interactions are the ones that are involved in this intercellular regulatory network. We can get these interactions as follows:
+
+```{r}
+network$prioritized_lr_interactions
+```
+
+
+```{r}
+prioritized_tbl_oi_network = prioritized_tbl_oi %>% inner_join(
+  network$prioritized_lr_interactions)
+prioritized_tbl_oi_network
+```
+Interestingly, we can also use this network to further prioritize differential CCC interactions. Here we will assume that the most important LR interactions are the ones that are involved in this intercellular regulatory network. We can get these interactions as follows:
+
+
+```{r}
+group_oi = "end"
+prioritized_tbl_oi_Int = prioritized_tbl_oi_network %>% filter(group == group_oi)
+
+plot_oi = make_sample_lr_prod_activity_plots_Omnipath(
+  multinichenet_output$prioritization_tables, 
+  prioritized_tbl_oi_Int %>% inner_join(lr_network_all)
+  )
+plot_oi
+
+ggsave("multiniche_output/int_end/int_Prioritized_LR_based_on_intrecellular_network.pdf", plot_oi, width = 14, height = 8,dpi = 300)
+```
+

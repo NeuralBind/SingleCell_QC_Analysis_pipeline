@@ -1,0 +1,23 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(Seurat)
+librery(ArchR)
+```
+
+
+```{r}
+seurat_obj <- enfnwln
+```
+
+
+```{r}
+cols2<-ArchRPalettes[[1]] #Select the color palette you want from here https://bookdown.org/ytliu13207/SingleCellMultiOmicsDataAnalysis/color-palette.html
+names(cols2)<-names(table(MycP53.combined$orig.ident)) #assign the same name from your varibles to the colors.. e.g. "Control"= "red", etc
+10:10
+DimPlot(MycP53.combined, cols = cols2[!is.na(names(cols2))],group.by = "orig.ident", reduction = "umap", shuffle = T)
+```
+

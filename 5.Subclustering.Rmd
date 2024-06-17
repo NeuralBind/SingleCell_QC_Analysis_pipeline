@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = F)
 ```
 
-```{r}
+```{r,echo=FALSE, warning=FALSE, message=FALSE}
 library(Seurat)
 library(patchwork)
 set.seed(9999)
@@ -22,16 +22,15 @@ library(presto)
 
 ```{r}
 object <- readRDS("SCT/intgr_indiv_SCT_harmony/data/annotated_intgr.rds")
-DimPlot(object, reduction = "umap", label = TRUE, shuffle = T, group.by = "condition")
+
+DimPlot(object, reduction = "umap", label = TRUE, shuffle = T, group.by = "cell_subtype")
 
 ```
 
 ```{r}
 T_cell <- subset(object, subset = cell_type== "T")
-#T_cell_SCT <- T_cell
 NK_T <- subset(object, subset  = cell_type== "NK/T")
 Ec <-  subset(object, subset  = cell_type== "EC")
-#EC_SCT <- Ec
 Myelo <- subset(object, subset  = cell_type== "M/MC")
 Gran <- subset(object, subset  = cell_type== "Gran")
 B_cell <- subset(object, subset  = cell_type== "B")
@@ -50,42 +49,61 @@ T_cell <- FindNeighbors(T_cell, reduction = "harmony", dims = 1:50)
 T_cell <- FindClusters(T_cell, algorithm = 4, method = "igraph" , resolution = 0.25)
 T_cell <- RunUMAP(T_cell, dims = 1:50, assay = "SCT", reduction = "harmony")
 
-p1 <- DimPlot(T_cell, reduction = "umap", label = TRUE, shuffle = T) + DimPlot(T_cell, reduction = "umap", group.by = "condition", label = TRUE, shuffle = T)
-p2 <- DimPlot(T_cell, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
-p1
+
+# p1 <- DimPlot(T_cell, reduction = "umap", label = TRUE, shuffle = T) + DimPlot(T_cell, reduction = "umap", group.by = "celltype_wide", label = TRUE, shuffle = T)
+# p2 <- DimPlot(T_cell, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
+# p1
 
 
 #p2
-#ggsave("T_cell_umap_0_25.png", plot = p1, width = 10, height = 10)
-#ggsave("T_cell_umap_0.25.pdf", plot = p1, device = "pdf", dpi = 300, width = 10, height = 8)
+# ggsave("T_cell_umap_0_25.png", plot = p1, width = 10, height = 10)
+# ggsave("T_cell_umap_0.25.pdf", plot = p1, device = "pdf", dpi = 300, width = 10, height = 8)
 # p1
-# # markers
-# T_markers <- wilcoxauc(T_cell, seurat_assay = "SCT","SCT_snn_res.0.25")
-# # # set filtering params
-# top_genes <- top_markers(T_markers, n = 450, auc_min = .5, padj_max = 0.05, pct_in_min = 10)
-# top_genes <- top_genes[, sort(names(top_genes))]
-# write.csv(top_genes, "T_cell_450Markers_res_0_25.csv", row.names = FALSE)
+# markers
+```
 
-saveRDS(T_cell, "T_cell_annot.rds")
+```{r}
+
+# T_markers <- wilcoxauc(T_cell, seurat_assay = "SCT","SCT_snn_res.0.25")
+# # set filtering params
+# top_genes <- top_markers(T_markers, n = 200, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# write.csv(top_genes, "output/T_cell_Markers_res_0_25.csv", row.names = FALSE)
+
+
+# pseudo_ifnb <- AggregateExpression(T_cell, assays = "RNA", return.seurat = TRUE, group.by = cell_subtype)
+# # each 'cell' is a donor-condition-celltype pseudobulk profile
+# head(Cells(pseudo_ifnb))
+# Idents(pseudo_ifnb) <- cell_subtype
+# 
+# bulk.mono.de <- FindMarkers(object = pseudo_ifnb, 
+#                          test.use = "DESeq2",cells.1 = pseudo_ifnb@meta.data$)
+# head(bulk.mono.de, n = 15)
+
+#saveRDS(T_cell, "T_cell_annot.rds")
+
 ```
 
 # Manual annotation of the T cells res 0.25
 
 ```{r}
-T_manual <- c( "1" = "Dysf/Exhausted_CD8+_T",
+T_manual <- c( "1" = "Exh_CD8_T",
                           "2" = "Naive_T",
-                          "3" = "Hif1a_CD4_T",
-                          "4" = "Apoe_T",
+                          "3" = "Maf_CD4_T",
+                          "4" = "Malat1_T",
                           "5" = "Itgb1_CD8_T",
                           "6" = "Proliferating_T",
-                          "7" = "Ebf1_B",
-                          "8" = "Klrg1_T"
+                          "7" = "CD3_T",
+                          "8" = "NKT_CD8_T"
                           )
 
 T_cell@meta.data$cell_subtype <- T_manual[as.character(T_cell@meta.data$SCT_snn_res.0.25)]
 
-T_annot <- DimPlot(T_cell, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
-ggsave("T_cell_annot_0.25.pdf", plot = T_annot, device = "pdf", dpi = 300, width = 10, height = 8)
+# saveRDS(T_cell, "output/T_cell_annot.rds")
+
+
+# DimPlot(T_cell, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+
+#ggsave("output/T_cell_annot_0.25.pdf", plot = T_annot, device = "pdf", dpi = 300, width = 10, height = 8)
 ```
 
 ## Endothelial cells
@@ -94,32 +112,39 @@ ggsave("T_cell_annot_0.25.pdf", plot = T_annot, device = "pdf", dpi = 300, width
 Ec <- FindNeighbors(Ec, reduction = "harmony", dims = 1:50)
 Ec <- FindClusters(Ec, algorithm = 4, method = "igraph" , resolution = 0.2)
 Ec <- RunUMAP(Ec, dims = 1:50, assay = "SCT", reduction = "harmony")
-p1 <-DimPlot(Ec, reduction = "umap", label = TRUE, shuffle = TRUE, alpha= 0.5) + DimPlot(Ec, reduction = "umap",group.by = "condition", label = TRUE)
-p2 <-DimPlot(Ec, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
-p1
+# p1 <-DimPlot(Ec, reduction = "umap", label = TRUE, shuffle = TRUE, alpha= 0.5) + DimPlot(Ec, reduction = "umap",group.by = "anchor_pred", label = TRUE)
+# p2 <-DimPlot(Ec, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
+# p1
 # ggsave("EC_umap_0_2.pdf", plot = p1, device = "pdf", dpi = 300, width = 10, height = 8)
 # ggsave("EC_umap_anchor_pred.pdf", plot = p2, device = "pdf", dpi = 300, width = 10, height = 8)
 # 
 # # markers
 # Ec_markers <- wilcoxauc(Ec, seurat_assay = "SCT","SCT_snn_res.0.2")
-# top_genes <- top_markers(Ec_markers, n=300, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
-# top_genes <- top_genes[, sort(names(top_genes))]
-# write.csv(top_genes, "Ec_Markers_res_0_2.csv", row.names = FALSE)
-saveRDS(Ec, "Ec.rds")
+# top_genes <- top_markers(Ec_markers, n=200, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# write.csv(top_genes, "output/Ec_Markers_res_0_2.csv", row.names = FALSE)
+# saveRDS(Ec, "Ec.rds")
+
 ```
 
 ```{r}
 EC_manual <- c( "1" = "Homeostatic_EC",
-                          "2" = "Oncofetal_fatty_EC",
+                          "2" = "Oncofetal_IGFBP3+_EC",
                           "3" = "VEGF+_EC",
                           "4" = "Prostaglandin+IL1R+_EC",
                           "5" = "CD52+_EC",
-                          "6" = "Naive_B",
-                          "7" = "TCRsign_T"
+                          "6" = "mixed_EC",
+                          "7" = "_EC"
                           )
 Ec@meta.data$cell_subtype <- EC_manual[as.character(Ec@meta.data$SCT_snn_res.0.2)]
-Ec_annot <- DimPlot(Ec, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
-ggsave("Ec_cell_annot_0.2.pdf", plot = Ec_annot, device = "pdf", dpi = 300, width = 10, height = 8)
+Ec <-subset(Ec, subset = celltype_wide != "B")# removed Random B cells
+
+DimPlot(Ec, reduction = "umap",group.by = "cell_subtype", label = TRUE)
+# 
+# saveRDS(Ec, "output/Ec.rds")
+# Ec_annot <- DimPlot(Ec, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+# ggsave("output/Ec_cell_annot_0.2.pdf", plot = Ec_annot, device = "pdf", dpi = 300, width = 10, height = 8)
+
+
 ```
 
 ## SCT global version doesnt seem to be better
@@ -136,7 +161,6 @@ ggsave("Ec_cell_annot_0.2.pdf", plot = Ec_annot, device = "pdf", dpi = 300, widt
 # EC_SCT_markers <- wilcoxauc(EC_SCT, seurat_assay = "SCT","SCT_snn_res.0.3")
 # # set filtering params
 # top_genes <- top_markers(EC_SCT_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
-# top_genes <- top_genes[, sort(names(top_genes))]
 # write.csv(top_genes, "EC_SCT_Markers_res_0_3.csv", row.names = FALSE)
 # saveRDS(T_cell, "EC_SCT.rds")
 ```
@@ -147,18 +171,19 @@ ggsave("Ec_cell_annot_0.2.pdf", plot = Ec_annot, device = "pdf", dpi = 300, widt
 Myelo <- FindNeighbors(Myelo, reduction = "harmony", dims = 1:50)
 Myelo <- FindClusters(Myelo, algorithm = 4, method = "igraph" , resolution = 0.6)
 Myelo <- RunUMAP(Myelo, dims = 1:50, assay = "SCT", reduction = "harmony")
-p1 <-DimPlot(Myelo, reduction = "umap", label = TRUE) + DimPlot(Myelo, reduction = "umap",group.by = "condition", label = TRUE)
-p2 <-DimPlot(Myelo, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
-p2
+
+# p1 <-DimPlot(Myelo, reduction = "umap", label = TRUE) + DimPlot(Myelo, reduction = "umap",group.by = "anchor_pred", label = TRUE)
+# 
+# p2 <-DimPlot(Myelo, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
+# p1
 # ggsave("Myelo_umap_0_6.pdf", plot = p1, device = "pdf", dpi = 300, width = 10, height = 8)
 # ggsave("Myelo_umap_anchor_pred.pdf", plot = p2, device = "pdf", dpi = 300, width = 10, height = 8)
 # # # markers
-Myelo_markers <- wilcoxauc(Myelo, seurat_assay = "SCT","cell_subtype")
-top_genes <- top_markers(Myelo_markers, n = 200, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
-top_genes <- top_genes[, sort(names(top_genes))]
-write.csv(top_genes, "Myelo_Markers_res_0_6.csv", row.names = FALSE)
-
-saveRDS(Myelo, "Myelo.rds")
+# Myelo_markers <- wilcoxauc(Myelo, seurat_assay = "SCT","SCT_snn_res.0.6")
+# top_genes <- top_markers(Myelo_markers, n = 200, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# write.csv(top_genes, "output/Myelo_Markers_res_0_6.csv", row.names = FALSE)
+# 
+# saveRDS(Myelo, "Myelo.rds")
 ```
 
 ```{r}
@@ -177,23 +202,28 @@ Myeloid_manual <- c( "1" = "IL1B+CCR2+_MDMs",
                           )
 Myelo@meta.data$cell_subtype <- Myeloid_manual[as.character(Myelo@meta.data$SCT_snn_res.0.6)]
 
-myelo_annot <- DimPlot(Myelo, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
-
-ggsave("Myelo_cell_annot_0.6.pdf", plot = myelo_annot, device = "pdf", dpi = 300, width = 10, height = 8)
+# DimPlot(Myelo, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+# 
+# saveRDS(Myelo, "output/Myelo_annot.rds")
+# 
+# 
+# 
+# ggsave("Myelo_cell_annot_0.6.pdf", plot = myelo_annot, device = "pdf", dpi = 300, width = 10, height = 8)
 ```
+
 ```{r}
 Myelo$condition <- factor(Myelo$condition, levels = c('ctl', 'int', 'end'))
 vln <-VlnPlot(
     object,
-    features="Trem2",
+    features=c("Acta2"),
     group.by = "cell_subtype",
-    split.by = "condition",
-    layer = "data"
+    layer = "data",
+    split.by = "condition"
     )
+#split.by = "condition",
 vln
 ggsave("Trem2Expression_myeloid.pdf", plot = vln, device = "pdf", dpi = 300, width = 10, height = 8)
 ```
-
 
 ## Granules
 
@@ -207,9 +237,8 @@ p1
 # ggsave("gran_umap_0_6.pdf", plot = p1, device = "pdf", dpi = 300, width = 10, height = 8)
 # # # markers
 # Gran_markers <- wilcoxauc(Gran, seurat_assay = "SCT","SCT_snn_res.0.6")
-# top_genes <- top_markers(Gran_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 10)
-# top_genes <- top_genes[, sort(names(top_genes))]
-# write.csv(top_genes, "Gran_Markers_res_0_06.csv", row.names = FALSE)
+# top_genes <- top_markers(Gran_markers, n = 200, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# write.csv(top_genes, "output/Gran_Markers_res_0_06.csv", row.names = FALSE)
 # saveRDS(Gran, "Gran.rds")
 ```
 
@@ -223,8 +252,8 @@ Gran_manual <- c( "1" = "Cxcr2+Ccl6+_Neu ",
                           )
 Gran@meta.data$cell_subtype <- Gran_manual[as.character(Gran@meta.data$SCT_snn_res.0.6)]
 
-gran_annot <- DimPlot(Gran, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
-ggsave("Gran_cell_annot_0.6.pdf", plot = gran_annot, device = "pdf", dpi = 300, width = 10, height = 8)
+# gran_annot <- DimPlot(Gran, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+# ggsave("Gran_cell_annot_0.6.pdf", plot = gran_annot, device = "pdf", dpi = 300, width = 10, height = 8)
 ```
 
 ## Nk/T
@@ -238,10 +267,9 @@ p2 <-DimPlot(NK_T, reduction = "umap", label = TRUE, shuffle = T, group.by = "an
 p1
 
 # # markers
-# NK_markers <- wilcoxauc(NK_T, seurat_assay = "SCT","SCT_snn_res.0.3") 
-# top_genes <- top_markers(NK_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
-# top_genes <- top_genes[, sort(names(top_genes))]
-# write.csv(top_genes, "NK_Markers_res_0_3.csv", row.names = FALSE)
+# NK_markers <- wilcoxauc(NK_T, seurat_assay = "SCT","SCT_snn_res.0.3")
+# top_genes <- top_markers(NK_markers, n = 200, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# write.csv(top_genes, "output/NK_Markers_res_0_3.csv", row.names = FALSE)
 #saveRDS(NK_T, "NK_T.rds")
 ```
 
@@ -251,6 +279,7 @@ NK_manual <- c( "1" = "Cytotoxic/Activated_NK",
                           "3" = "Fatty_NK"
                           )
 NK_T@meta.data$cell_subtype <- NK_manual[as.character(NK_T@meta.data$SCT_snn_res.0.3)]
+
 DimPlot(NK_T, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
 ```
 
@@ -260,28 +289,27 @@ DimPlot(NK_T, reduction = "umap", label = T, shuffle = T, group.by = "cell_subty
 plasm <- FindNeighbors(plasm, reduction = "harmony", dims = 1:50)
 plasm <- FindClusters(plasm, algorithm = 4, method = "igraph" , resolution = 0.1)
 plasm <- RunUMAP(plasm, dims = 1:50, assay = "SCT", reduction = "harmony")
-p1 <-DimPlot(plasm, reduction = "umap", label = TRUE) + DimPlot(plasm, reduction = "umap",group.by = "condition", label = TRUE)
+p1 <-DimPlot(plasm, reduction = "umap", label = TRUE) + DimPlot(plasm, reduction = "umap",group.by = "cell_subtype", label = TRUE)
 p2 <-DimPlot(plasm, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
-
+p1
 # # markers
 # plasm_markers <- wilcoxauc(plasm, seurat_assay = "SCT","SCT_snn_res.0.1")
-# top_genes <- top_markers(plasm_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
-# top_genes <- top_genes[, sort(names(top_genes))]
-# write.csv(top_genes, "Plasma_Markers_res_0_1.csv", row.names = FALSE)
+# top_genes <- top_markers(plasm_markers, n = 200, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# write.csv(top_genes, "output/Plasma_Markers_res_0_1.csv", row.names = FALSE)
 #saveRDS(plasm, "plasm.rds")
 ```
 
 ```{r}
 plasm_manual <- c( "1" = "Igkc_Plasm",
                           "2" = "Hmgb2_Plasm",
-                          "3" = "S100a6_Plasm",
+                          "3" = "Plasm_Fib",
                           "4" = "Bnip3l_Plasm"
                           )
 plasm@meta.data$cell_subtype <- plasm_manual[as.character(plasm@meta.data$SCT_snn_res.0.1)]
-
-plasm_annot <- DimPlot(plasm, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
-
-ggsave("plasm_cell_annot_0.1.pdf", plot = plasm_annot, device = "pdf", dpi = 300, width = 10, height = 8)
+# 
+# plasm_annot <- DimPlot(plasm, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+# 
+# ggsave("plasm_cell_annot_0.1.pdf", plot = plasm_annot, device = "pdf", dpi = 300, width = 10, height = 8)
 ```
 
 ## PDcs
@@ -296,8 +324,7 @@ p1
 # # markers
 # pDCs_markers <- wilcoxauc(pDCs, seurat_assay = "SCT","SCT_snn_res.0.13")
 # top_genes <- top_markers(pDCs_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
-# top_genes <- top_genes[, sort(names(top_genes))]
-# write.csv(top_genes, "pDCs_Markers_res_0_13.csv", row.names = FALSE)
+# write.csv(top_genes, "output/pDCs_Markers_res_0_13.csv", row.names = FALSE)
 #saveRDS(pDCs, "pDCs.rds")
 ```
 
@@ -306,9 +333,11 @@ pDCs_manual <- c( "1" = "Irf8+_pDCs",
            "2" = "Foxp1+_pDCs"
                           )
 pDCs@meta.data$cell_subtype <- pDCs_manual[as.character(pDCs@meta.data$SCT_snn_res.0.13)]
-pDCs_annot <- DimPlot(pDCs, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
 
-ggsave("pDCs_annot_0.13.pdf", plot = pDCs_annot, device = "pdf", dpi = 300, width = 10, height = 8)
+# 
+# pDCs_annot <- DimPlot(pDCs, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+# 
+# ggsave("pDCs_annot_0.13.pdf", plot = pDCs_annot, device = "pdf", dpi = 300, width = 10, height = 8)
 ```
 
 ## B cells
@@ -317,17 +346,17 @@ ggsave("pDCs_annot_0.13.pdf", plot = pDCs_annot, device = "pdf", dpi = 300, widt
 B_cell <- FindNeighbors(B_cell, reduction = "harmony", dims = 1:50)
 B_cell <- FindClusters(B_cell, algorithm = 4, method = "igraph" , resolution = 0.08)
 B_cell <- RunUMAP(B_cell, dims = 1:50, assay = "SCT", reduction = "harmony")
-p1 <-DimPlot(B_cell, reduction = "umap", label = TRUE, shuffle = T) + DimPlot(B_cell, reduction = "umap",group.by = "condition", label = TRUE, shuffle = T)
-p2 <-DimPlot(B_cell, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
-p1
+
+# p1 <-DimPlot(B_cell, reduction = "umap", label = TRUE, shuffle = T) + DimPlot(B_cell, reduction = "umap",group.by = "condition", label = TRUE, shuffle = T)
+# p2 <-DimPlot(B_cell, reduction = "umap", label = TRUE, shuffle = T, group.by = "anchor_pred")
+# p1
 
 
 # # markers
 # B_markers <- wilcoxauc(B_cell, seurat_assay = "SCT","SCT_snn_res.0.08")
 # # set filtering params
-# top_genes <- top_markers(B_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
-# top_genes <- top_genes[, sort(names(top_genes))]
-# write.csv(top_genes, "B_cell_Markers_res_0_08.csv", row.names = FALSE)
+# top_genes <- top_markers(B_markers, n = 200, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
+# write.csv(top_genes, "output/B_cell_Markers_res_0_08.csv", row.names = FALSE)
 #saveRDS(B_cell, "B_cell.rds")
 ```
 
@@ -337,8 +366,11 @@ B_manual <- c( "1" = "Activated_B",
                "3" = "Foxp1+Very_early_B"
                )
 B_cell@meta.data$cell_subtype <- B_manual[as.character(B_cell@meta.data$SCT_snn_res.0.08)]
-B_annot <- DimPlot(B_cell, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
-ggsave("B_annot_0.08.pdf", plot = B_annot, device = "pdf", dpi = 300, width = 10, height = 8)
+
+
+# B_annot <- DimPlot(B_cell, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+# 
+# ggsave("B_annot_0.08.pdf", plot = B_annot, device = "pdf", dpi = 300, width = 10, height = 8)
 ```
 
 ## hep/ tumor 1
@@ -357,7 +389,6 @@ p2
 # HC1_markers <- wilcoxauc(HC1_cell, seurat_assay = "SCT","SCT_snn_res.0.06")
 # # set filtering params
 # top_genes <- top_markers(HC1_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
-# top_genes <- top_genes[, sort(names(top_genes))]
 # write.csv(top_genes, "HC1_markers_0_06.csv", row.names = FALSE)
 #saveRDS(HC1_cell, "HC1_cell.rds")
 
@@ -365,7 +396,8 @@ HC1_manual <- c( "1" = "Apoc1+Aldob+_Hep",
                  "2" = "IL6ST+_Hep"
                )
 HC1_cell@meta.data$cell_subtype <- HC1_manual[as.character(HC1_cell@meta.data$SCT_snn_res.0.06)]
-DimPlot(HC1_cell, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+
+# DimPlot(HC1_cell, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
 
 ```
 
@@ -373,7 +405,7 @@ DimPlot(HC1_cell, reduction = "umap", label = T, shuffle = T, group.by = "cell_s
 
 ```{r}
 HC2_cell <- FindNeighbors(HC2_cell, reduction = "harmony", dims = 1:50)
-HC2_cell <- FindClusters(HC2_cell, algorithm = 4, method = "igraph" , resolution = 0.15)
+HC2_cell <- FindClusters(HC2_cell, algorithm = 4, method = "igraph" , resolution = 0.2)
 HC2_cell <- RunUMAP(HC2_cell, dims = 1:50, assay = "SCT", reduction = "harmony")
 #p1 <- "umap", label = TRUE) + DimPlot(HC2_cell, reduction = "umap",group.by = "condition", shuffle = T)
 DimPlot(HC2_cell, reduction = "umap", label = TRUE) 
@@ -383,18 +415,71 @@ DimPlot(HC2_cell, reduction = "umap", label = TRUE)
 # HC2_markers <- wilcoxauc(HC2_cell, seurat_assay = "SCT","SCT_snn_res.0.15")
 # # # set filtering params
 # top_genes <- top_markers(HC2_markers, n = 50, auc_min = .5, padj_max = 0.05, pct_in_min = 70)
-# top_genes <- top_genes[, sort(names(top_genes))]
 # write.csv(top_genes, "HC2_markers_0_15.csv", row.names = FALSE)
 #saveRDS(HC2_cell, "HC2_cell.rds")
 HC2_manual <- c( "1" = "Vegfa+_Hep",
                "2" = "CD74+MHCII+_Hep",
                "3" = "Serpina+_Hep"
                )
-HC2_cell@meta.data$cell_subtype <- HC2_manual[as.character(HC2_cell@meta.data$SCT_snn_res.0.15)]
-DimPlot(HC2_cell, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+HC2_cell@meta.data$cell_subtype <- HC2_manual[as.character(HC2_cell@meta.data$SCT_snn_res.0.2)]
+
+# DimPlot(HC2_cell, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+
+```
+### After Succesfull annotation we put the metdata information to the original object (i removed B cells from EC clustere and they are NA(cell_subtype) in the integrated dataset) But also put on the wide clustering Myeloid differentiation and Fibroblasts
+
+```{r}
+
+
+meta1 <- T_cell@meta.data[, "cell_subtype", drop = FALSE]
+meta2 <- NK_T@meta.data[, "cell_subtype", drop = FALSE]
+meta3 <- Ec@meta.data[, "cell_subtype", drop = FALSE]
+meta4 <- Myelo@meta.data[, "cell_subtype", drop = FALSE]
+meta5 <- Gran@meta.data[, "cell_subtype", drop = FALSE]
+meta6 <- B_cell@meta.data[, "cell_subtype", drop = FALSE]
+meta7 <- plasm@meta.data[, "cell_subtype", drop = FALSE]
+meta8 <- pDCs@meta.data[, "cell_subtype", drop = FALSE]
+meta9 <- HC1_cell@meta.data[, "cell_subtype", drop = FALSE]
+meta10 <- HC2_cell@meta.data[, "cell_subtype", drop = FALSE]
+
+combined_meta <- rbind(meta1, meta2, meta3, meta4, meta5, meta6, meta7, meta8, meta9 , meta10)
+
+object <- AddMetaData(object, metadata = combined_meta, col.name = "cell_subtype")
+DefaultAssay(object) <- "SCT"
+Idents(object = object) <- "cell_subtypes"
+#object <- factor(object$condition, levels = c('ctl', 'int', 'end'))
+
+
+metadata <- object@meta.data
+# Seperate mph dc and others in the bigger subcluster 
+metadata$cell_type <- ifelse(grepl("_Mph$", metadata$cell_subtype), "Mph",
+                      ifelse(grepl("_DCs$", metadata$cell_subtype), "DCs",
+                      ifelse(grepl("_KCs$", metadata$cell_subtype), "KCs",
+                      ifelse(grepl("_MDMs$", metadata$cell_subtype), "MDMs",
+                      ifelse(grepl("_Mono$", metadata$cell_subtype), "Mono",
+                      ifelse(grepl("cDC1s$", metadata$cell_subtype), "DCs",
+                      ifelse(grepl("cDC2s$", metadata$cell_subtype), "DCs",
+                      ifelse(grepl("_Fib$", metadata$cell_subtype), "Fib",
+                      metadata$cell_type))))))))
+
+                      
+object@meta.data <- metadata
+unique(object$cell_type)
+
+
+
+
+
+
+saveRDS(object, file= "SCT/intgr_indiv_SCT_harmony/Subclustering/subcluster_annotated_RasV.rds")
 ```
 
-### Enrichment based on the dataset from oncofetal
+```{r}
+annot_umap <- DimPlot(object, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
+annot_umap
+ggsave("Subcluster_annotated_RasV.pdf", plot = annot_umap, device = "pdf", dpi = 300, width = 16, height = 8)
+```
+# Enrichment based on the dataset from oncofetal
 
 ## First transform human markers from the paper to mouse ones, the xlsx file has 2 layers one from myeloid and one for endothelial cells
 
@@ -793,7 +878,6 @@ myeloid_enrich
 ggsave("Human_Lams_Enrichment.pdf", plot = myeloid_enrich, device = "pdf", dpi = 300, width = 10, height = 7, units = "in")
 ```
 
-
 ```{r}
 
 file_path <- "enrich_results_T_Zheng_450markers_0_25res.xlsx"
@@ -922,40 +1006,7 @@ ggsave("T_dotplot_Enrichment_2_Zheng.pdf", plot = T_enrich_2, device = "pdf", dp
 hyp_dots(T_cell_enrich_results, fdr = 0.05, size_by = "significance", merge = F)
 ```
 
-```{r}
 
-```
-
-
-### After Succesfull annotation we put the metdata information to the original object
-
-```{r}
-meta1 <- T_cell@meta.data[, "cell_subtype", drop = FALSE]
-meta2 <- NK_T@meta.data[, "cell_subtype", drop = FALSE]
-meta3 <- Ec@meta.data[, "cell_subtype", drop = FALSE]
-meta4 <- Myelo@meta.data[, "cell_subtype", drop = FALSE]
-meta5 <- Gran@meta.data[, "cell_subtype", drop = FALSE]
-meta6 <- B_cell@meta.data[, "cell_subtype", drop = FALSE]
-meta7 <- plasm@meta.data[, "cell_subtype", drop = FALSE]
-meta8 <- pDCs@meta.data[, "cell_subtype", drop = FALSE]
-meta9 <- HC1_cell@meta.data[, "cell_subtype", drop = FALSE]
-meta10 <- HC2_cell@meta.data[, "cell_subtype", drop = FALSE]
-
-combined_meta <- rbind(meta1, meta2, meta3, meta4, meta5, meta6, meta7, meta8, meta9 , meta10)
-
-object <- AddMetaData(object, metadata = combined_meta, col.name = "cell_subtype")
-
-Idents(object = object) <- "cell_subtypes"
-object <- factor(object$condition, levels = c('ctl', 'int', 'end'))
-saveRDS(object, file= "subcluster_annotated_RasV.rds")
-
-```
-
-```{r}
-annot_umap <- DimPlot(object, reduction = "umap", label = T, shuffle = T, group.by = "cell_subtype")
-annot_umap
-#ggsave("Subcluster_annotated_RasV.pdf", plot = annot_umap, device = "pdf", dpi = 300, width = 16, height = 8)
-```
 
 ```{r}
 metadata <- T_cell@meta.data
@@ -996,7 +1047,8 @@ plots <- percentage_data %>%
 print(plots)
 ggsave("B_cell_subcluster_barplot.pdf", plot = plots, device = "pdf", dpi = 300, width = 10, height = 8)
 ```
-## Box plot for better representation
+
+## Box plot for better representation of the abudances
 
 ```{r}
 metadata <- NK_T@meta.data
@@ -1043,3 +1095,237 @@ ggsave("Nk_cell_subcluster_boxplot.pdf", plot = plots, device = "pdf", dpi = 300
 
 ```
 
+# MiloR in subclusters
+
+```{r}
+Myelo <- readRDS("SCT/intgr_indiv_SCT_harmony/Subclustering/2.Myeloid/Myelo_annot.rds")
+T_cell <- readRDS("SCT/intgr_indiv_SCT_harmony/Subclustering/3.T_cells/T_cell_annot.rds")
+Ec <- readRDS("SCT/intgr_indiv_SCT_harmony/Subclustering/1.EC/Ec.rds")
+
+
+DefaultAssay(object= Myelo)<- "SCT"
+DefaultAssay(object= T_cell)<- "SCT"
+DefaultAssay(object= Ec)<- "SCT"
+
+
+
+
+T_cell <- as.SingleCellExperiment(T_cell)
+Ec <- as.SingleCellExperiment(Ec)
+Myelo <- as.SingleCellExperiment(Myelo)
+
+
+T_milo <- Milo(T_cell) #turn to milo obj
+Ec_milo <- Milo(Ec)
+Myelo_milo <- Milo(Myelo)
+
+T_milo <- buildGraph(T_milo, k = 40, d = 50, reduced.dim = "HARMONY")
+T_milo <- makeNhoods(T_milo, prop = 0.4, k = 40, d=50, refined = TRUE)
+plotNhoodSizeHist(T_milo)
+
+Ec_milo <- buildGraph(Ec_milo, k = 35, d = 50, reduced.dim = "HARMONY")
+Ec_milo <- makeNhoods(Ec_milo, prop = 0.4, k = 35, d=50, refined = TRUE)
+plotNhoodSizeHist(Ec_milo)
+
+Myelo_milo <- buildGraph(Myelo_milo, k = 35, d = 50, reduced.dim = "HARMONY")
+Myelo_milo <- makeNhoods(Myelo_milo, prop = 0.4, k =35, d=50, refined = TRUE)
+plotNhoodSizeHist(Myelo_milo)
+
+```
+
+```{r}
+T_milo <- countCells(T_milo, meta.data = data.frame(colData(T_cell)), sample="batch")
+Ec_milo <- countCells(Ec_milo, meta.data = data.frame(colData(Ec)), sample="batch")
+Myelo_milo <- countCells(Myelo_milo, meta.data = data.frame(colData(Myelo_milo)), sample="batch")
+```
+
+```{r}
+
+T_design <- data.frame(colData(T_milo))[,c("batch", "condition")]
+T_design <- distinct(T_design)
+rownames(T_design) <- T_design$batch
+
+## reorder rownames to match columns of nhoodCounts(milo)
+T_design <- T_design[colnames(nhoodCounts(T_milo)), , drop=FALSE]
+
+table(T_design$condition)
+
+
+Ec_design <- data.frame(colData(Ec_milo))[,c("batch", "condition")]
+Ec_design <- distinct(Ec_design)
+rownames(Ec_design) <- Ec_design$batch
+
+## reorder rownames to match columns of nhoodCounts(milo)
+Ec_design <- Ec_design[colnames(nhoodCounts(Ec_milo)), , drop=FALSE]
+
+table(Ec_design$condition)
+
+Myelo_design <- data.frame(colData(Myelo_milo))[,c("batch", "condition")]
+Myelo_design <- distinct(Myelo_design)
+rownames(Myelo_design) <- Myelo_design$batch
+
+## reorder rownames to match columns of nhoodCounts(milo)
+Myelo_design <- Myelo_design[colnames(nhoodCounts(Myelo_milo)), , drop=FALSE]
+
+table(Myelo_design$condition)
+```
+
+```{r}
+T_design_ctl_int <- T_design[T_design$condition %in% c("ctl", "int"), ]
+T_design_int_end <- T_design[T_design$condition %in% c("int", "end"), ]
+T_design_int_end$condition <- factor(T_design_int_end$condition, levels = c('int', 'end'))
+
+
+Ec_design_ctl_int <- Ec_design[Ec_design$condition %in% c("ctl", "int"), ]
+Ec_design_int_end <- Ec_design[Ec_design$condition %in% c("int", "end"), ]
+Ec_design_int_end$condition <- factor(Ec_design_int_end$condition, levels = c('int', 'end'))
+
+Myelo_design_ctl_int <- Myelo_design[Myelo_design$condition %in% c("ctl", "int"), ]
+Myelo_design_int_end <- Myelo_design[Myelo_design$condition %in% c("int", "end"), ]
+Myelo_design_int_end$condition <- factor(Myelo_design_int_end$condition, levels = c('int', 'end'))
+```
+
+```{r}
+T_milo <- calcNhoodDistance(T_milo, d=50, reduced.dim = "HARMONY", use.assay = "logcounts") # use assay
+da_T_ctl_int <- testNhoods(T_milo, design = ~ condition, design.df = T_design_ctl_int, fdr.weighting="graph-overlap")
+da_T_int_end <- testNhoods(T_milo, design= ~ condition, design.df = T_design_int_end, fdr.weighting="graph-overlap")
+
+
+Ec_milo <- calcNhoodDistance(Ec_milo, d=50, reduced.dim = "HARMONY", use.assay = "logcounts") # use assay
+da_Ec_ctl_int <- testNhoods(Ec_milo, design = ~ condition, design.df = Ec_design_ctl_int, fdr.weighting="graph-overlap")
+da_Ec_int_end <- testNhoods(Ec_milo, design = ~  condition, design.df = Ec_design_int_end, fdr.weighting="graph-overlap")
+
+Myelo_milo <- calcNhoodDistance(Myelo_milo, d=50, reduced.dim = "HARMONY", use.assay = "logcounts") # use assay
+da_Myelo_ctl_int <- testNhoods(Myelo_milo, design = ~ condition, design.df = Myelo_design_ctl_int, fdr.weighting="graph-overlap")
+da_Myelo_int_end <- testNhoods(Myelo_milo, design = ~  condition, design.df = Myelo_design_int_end, fdr.weighting="graph-overlap")
+```
+
+\
+
+```{r}
+da_T_ctl_int %>%
+  arrange(- SpatialFDR) %>%
+  head() 
+da_Ec_ctl_int %>%
+  arrange(- SpatialFDR) %>%
+  head() 
+da_Myelo_ctl_int %>%
+  arrange(- SpatialFDR) %>%
+  head() 
+
+da_T_int_end %>%
+  arrange(-SpatialFDR) %>%
+  head() 
+
+da_Ec_int_end %>%
+  arrange(- SpatialFDR) %>%
+  head() 
+da_Myelo_int_end %>%
+  arrange(- SpatialFDR) %>%
+  head() 
+
+write.csv(da_T_ctl_int, "T_da_ctlvsint.csv", row.names = FALSE)
+write.csv(da_T_int_end, "T_da_endvsint.csv", row.names = FALSE)
+
+write.csv(da_Myelo_ctl_int, "Myelo_da_ctlvsint.csv", row.names = FALSE)
+write.csv(da_Myelo_int_end, "Myelo_da_endvsint.csv", row.names = FALSE)
+
+write.csv(da_Ec_ctl_int, "Ec_da_ctlvsint.csv", row.names = FALSE)
+write.csv(da_Ec_int_end, "Ec_da_endvsint.csv", row.names = FALSE)
+```
+
+```{r}
+T_milo <- buildNhoodGraph(T_milo)
+Ec_milo <- buildNhoodGraph(Ec_milo)
+Myelo_milo <- buildNhoodGraph(Myelo_milo)
+
+
+```
+
+```{r}
+#T_milo$condition <- factor(Myelo$condition, levels = c('ctl', 'int', 'end'))
+
+T1 <- plotUMAP(T_milo, colour_by="cell_subtype", point_size=0.9,text_by = "cell_subtype", text_size = 3.5) + plotNhoodGraphDA(T_milo, da_T_ctl_int, alpha=0.5) +
+      plot_layout(guides="auto" )+
+      ggtitle("Intermediate vs Control")
+
+T2 <- plotUMAP(T_milo, colour_by="cell_subtype", point_size=0.9, text_by = "cell_subtype", text_size = 3.5) + plotNhoodGraphDA(T_milo, da_T_int_end, alpha=0.5) +
+      plot_layout(guides="auto" )+
+      ggtitle("Intermediate vs End Tcells ")
+
+
+ggsave("Milo_T_ct_to_int.pdf", plot = T1, device = "pdf", dpi = 300, width = 10, height = 7)
+ggsave("Milo_T_int_to_end.pdf", plot = T2, device = "pdf", dpi = 300, width = 10, height = 7)
+```
+
+```{r}
+Ec1 <- plotUMAP(Ec_milo, colour_by="cell_subtype", point_size=0.9,text_by = "cell_subtype", text_size = 3.5) + plotNhoodGraphDA(Ec_milo, da_Ec_ctl_int, alpha=0.5) +
+      plot_layout(guides="auto" )+
+      ggtitle("Intermediate vs Control")
+
+Ec2 <- plotUMAP(Ec_milo, colour_by="cell_subtype", point_size=0.9, text_by = "cell_subtype", text_size = 3.5) + plotNhoodGraphDA(Ec_milo, da_Ec_int_end, alpha=0.5) +
+      plot_layout(guides="auto" )+
+      ggtitle("Intermediate vs End Ecs")
+
+ggsave("Milo_Ec_ct_to_int.pdf", plot = Ec1, device = "pdf", dpi = 300, width = 10, height = 7)
+ggsave("Milo_Ec_int_to_end.pdf", plot = Ec2, device = "pdf", dpi = 300, width = 10, height = 7)
+```
+
+```{r}
+M1 <- plotUMAP(Myelo_milo, colour_by="cell_subtype", point_size=0.9,text_by = "cell_subtype", text_size = 3.5) + plotNhoodGraphDA(Myelo_milo, da_Myelo_ctl_int, alpha=0.5) +
+      plot_layout(guides="auto" )+
+      ggtitle("Intermediate vs Control")
+
+M2 <- plotUMAP(Myelo_milo, colour_by="cell_subtype", point_size=0.9, text_by = "cell_subtype", text_size = 3.5) + plotNhoodGraphDA(Myelo_milo, da_Myelo_int_end, alpha=0.5) +
+      plot_layout(guides="auto" )+
+      ggtitle("Intermediate vs End Monocytes")
+
+ggsave("Milo_Mono_ct_to_int.pdf", plot = M1, device = "pdf", dpi = 300, width = 10, height = 7)
+ggsave("Milo_Mono_int_to_end.pdf", plot = M2, device = "pdf", dpi = 300, width = 10, height = 7)
+```
+
+```{r}
+da_T_ctl_int <- annotateNhoods(T_milo, da_T_int_end, coldata_col = "cell_subtype")
+da_T_int_end <- annotateNhoods(T_milo, da_T_int_end, coldata_col = "cell_subtype")
+
+da_Ec_ctl_int <- annotateNhoods(Ec_milo, da_Ec_int_end, coldata_col = "cell_subtype")
+da_Ec_int_end <- annotateNhoods(Ec_milo, da_Ec_int_end, coldata_col = "cell_subtype")
+
+da_Myelo_ctl_int <- annotateNhoods(Myelo_milo, da_Myelo_ctl_int, coldata_col = "cell_subtype")
+da_Myelo_int_end <- annotateNhoods(Myelo_milo, da_Myelo_int_end, coldata_col = "cell_subtype")
+```
+
+```{r}
+# whatever group is less than 0.7 call it mixed
+da_T_ctl_int$cell_subtype <- ifelse(da_T_ctl_int$cell_subtype_fraction < 0.7, "Mixed", da_T_ctl_int$cell_subtype)
+da_T_int_end$cell_subtype <- ifelse(da_T_int_end$cell_subtype_fraction < 0.7, "Mixed", da_T_int_end$cell_subtype)
+
+
+da_Ec_ctl_int$cell_subtype <- ifelse(da_Ec_ctl_int$cell_subtype_fraction < 0.7, "Mixed", da_Ec_ctl_int$cell_subtype)
+da_Ec_int_end$cell_subtype <- ifelse(da_Ec_int_end$cell_subtype_fraction < 0.7, "Mixed", da_Ec_int_end$cell_subtype)
+
+da_Myelo_ctl_int$cell_subtype <- ifelse(da_Myelo_ctl_int$cell_subtype_fraction < 0.7, "Mixed", da_Ec_ctl_int$cell_subtype)
+da_Myelo_int_end$cell_subtype <- ifelse(da_Myelo_int_end$cell_subtype_fraction < 0.7, "Mixed", da_Myelo_int_end$cell_subtype)
+
+```
+
+```{r}
+bee1 <- plotDAbeeswarm(da_T_ctl_int, group.by = "cell_subtype", alpha = 1)+ggtitle("Control to Pretumor")
+ggsave("T_ctl_to_int_beeswarm.pdf", plot = bee1, width = 7, height = 5, dpi = 300)
+bee2 <- plotDAbeeswarm(da_T_int_end, group.by = "cell_subtype", alpha = 1)+ggtitle("Pretumor to Tumor")
+ggsave("T_int_to_end_beeswarm.pdf", plot = bee2, width = 7, height = 5, dpi = 300)
+
+
+bee3 <- plotDAbeeswarm(da_Ec_ctl_int, group.by = "cell_subtype", alpha = 1)+ggtitle("Control to Pretumor")
+ggsave("Ec_ctl_to_int_beeswarm.pdf", plot = bee3, width = 7, height = 5, dpi = 300)
+bee4 <- plotDAbeeswarm(da_Ec_int_end, group.by = "cell_subtype", alpha = 1)+ggtitle("Pretumor to Tumor")
+ggsave("Ec_int_to_end_beeswarm.pdf", plot = bee4, width = 7, height = 5, dpi = 300)
+
+bee5 <- plotDAbeeswarm(da_Myelo_ctl_int, group.by = "cell_subtype", alpha = 1)+ggtitle("Control to Pretumor")
+ggsave("Myelo_ctl_to_int_beeswarm.pdf", plot = bee5, width = 7, height = 5, dpi = 300)
+bee6 <- plotDAbeeswarm(da_Myelo_int_end, group.by = "cell_subtype", alpha = 1)+ggtitle("Pretumor to Tumor")
+ggsave("Myelo_int_to_end_beeswarm.pdf", plot = bee6, width = 7, height = 5, dpi = 300)
+
+
+
+```

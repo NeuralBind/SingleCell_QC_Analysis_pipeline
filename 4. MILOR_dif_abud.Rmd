@@ -81,7 +81,10 @@ table(rasv_design$condition)
 # filter for the comparisons
 rasv_design_ctl_int <- rasv_design[rasv_design$condition %in% c("ctl", "int"), ]
 rasv_design_int_end <- rasv_design[rasv_design$condition %in% c("int", "end"), ]
+rasv_design_int_end$condition <- factor(rasv_design_int_end$condition, levels = c('int', 'end'))
+
 rasv_design_ctl_end <- rasv_design[rasv_design$condition %in% c("ctl", "end"), ]
+## prepei na allaksw to factor edw gia na allaksei to compariason
 
 #rasv_design_int_end$condition <- factor(rasv_design_int_end$condition, levels = c("int", "end"))
 #contrasts <- makeContrasts(int - end, levels = )

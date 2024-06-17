@@ -39,7 +39,8 @@ and for use cases:
 ## <https://github.com/saeyslab/nichenetr/blob/master/vignettes/faq.md>
 
 ```{r}
-Sc_filtered <- readRDS(file ="output/Sc_annotated.rds")
+Sc_filtered <- readRDS(file ="SCT/intgr_indiv_SCT_harmony/Subclustering/subcluster_annotated_RasV.rds")
+DefaultAssay(Sc_filtered) <-"SCT"
 ```
 
 ```{r}
@@ -51,7 +52,7 @@ Sc_filtered <- UpdateSeuratObject(Sc_filtered)
 ```
 
 ```{r}
-DimPlot(Sc_filtered, reduction = "umap", group.by = "predicted_label")
+DimPlot(Sc_filtered, reduction = "umap", group.by = "cell_subtype")
 ```
 
 ```{r}
@@ -89,8 +90,9 @@ head(weighted_networks$gr) # interactions and their weights in the gene regulato
 ```{r}
 # in my annotated file  i have all the subtypes so i can make a generalized celltype column 
 
-Sc_filtered$cell_type_gen <- gsub("_.*", "", Sc_filtered$predicted_label)
-
+Sc_filtered$cell_type_gen <- gsub("_.*", "", Sc_filtered$cell_subtype)
+Sc_filtered$cell_type_gen <- gsub("^[^_]*_", "", Sc_filtered$cell_subtype)
+Sc_filtered$cell_type_gen <- Sc_filtered$cell_subtype
 ```
 
 ```{r}
@@ -103,7 +105,7 @@ Idents(Sc_filtered) <- Sc_filtered$cell_type_gen
 ```{r}
 
 ## receiver
-receiver = "CD8T"
+receiver = "Dysf/Exhausted_CD8+_T"
 expressed_genes_receiver = get_expressed_genes(receiver, Sc_filtered, pct = 0.10)# expressed in 10% of the cells
 
 background_expressed_genes = expressed_genes_receiver %>% .[. %in% rownames(ligand_target_matrix)]
@@ -113,7 +115,7 @@ background_expressed_genes = expressed_genes_receiver %>% .[. %in% rownames(liga
 ```{r}
 # unique(Sc_filtered$cell_type_gen) - look at the general cell clusters
 ## sender, add the sender types
-sender_celltypes = c("CD4T","Mph", "Mo", "NK", "B", "DC", "Mono-like")
+sender_celltypes = c("Cxcl16+Apoe+_Mph")
 
 list_expressed_genes_sender = sender_celltypes %>% unique() %>% lapply(get_expressed_genes, Sc_filtered, 0.10) # lapply to get the expressed genes of every sender cell type separately here
 expressed_genes_sender = list_expressed_genes_sender %>% unlist() %>% unique()
@@ -123,19 +125,31 @@ expressed_genes_sender = list_expressed_genes_sender %>% unlist() %>% unique()
 
 ```{r}
 seurat_obj_receiver= subset(Sc_filtered, idents = receiver)
-seurat_obj_receiver = SetIdent(seurat_obj_receiver, value = seurat_obj_receiver[["aggregate", drop=TRUE]])
+seurat_obj_receiver = SetIdent(seurat_obj_receiver, value = seurat_obj_receiver[["condition", drop=TRUE]])
 
 #add the conditions here
-condition_oi = "LCMV"
-condition_reference = "SS" 
-  
-DE_table_receiver = FindMarkers(object = seurat_obj_receiver, ident.1 = condition_oi, ident.2 = condition_reference, min.pct = 0.10) %>% rownames_to_column("gene")
+condition_oi = "int"
+condition_reference = "ctl"  ## maybe i can add sthe 3rd condition 2
+
+PrepSCTFindMarkers(Sc_filtered, assay = "SCT", verbose = TRUE) 
+DE_table_receiver = FindMarkers(object = seurat_obj_receiver, ident.1 = condition_oi, ident.2 = condition_reference, min.pct = 0.10, recorrect_umi=FALSE) %>% rownames_to_column("gene")## recorrect umi needed!!
 
 geneset_oi = DE_table_receiver %>% filter(p_val_adj <= 0.05 & abs(avg_log2FC) >= 0.25) %>% pull(gene)
 geneset_oi = geneset_oi %>% .[. %in% rownames(ligand_target_matrix)]
 ```
 
 ```{r}
+# seurat_obj_receiver[["RNA"]] <- as(object = seurat_obj_receiver[["RNA"]], Class = "Assay")
+# pseudo_bulk <- AggregateExpression(seurat_obj_receiver, assays = "RNA", return.seurat = TRUE, group.by = c("int","ctl","cell_subtype"))
+# # each 'cell' is a donor-condition-celltype pseudobulk profile
+# tail(Cells(pseudo_bulk))
+# 
+# Idents(pseudo_bulk) <- "cell_subtype"
+# 
+# bulk.mono.de <- FindMarkers(object = pseudo_counts, 
+#                          test.use = "DESeq2",ident.1 = "Naive_T")
+# head(bulk.mono.de, n = 15)
+
 
 ```
 
@@ -155,9 +169,10 @@ potential_ligands = lr_network %>% filter(from %in% expressed_ligands & to %in% 
 ## 4) Perform NicheNet ligand activity analysis: rank the potential ligands based on the presence of their target genes in the gene set of interest (compared to the background set of genes)
 
 ```{r}
+
 ligand_activities = predict_ligand_activities(geneset = geneset_oi, background_expressed_genes = background_expressed_genes, ligand_target_matrix = ligand_target_matrix, potential_ligands = potential_ligands)
 
-ligand_activities = ligand_activities %>% arrange(-aupr_corrected) %>% mutate(rank = rank(desc(aupr_corrected)))
+ligand_activities = ligand_activities %>% arrange(-aupr_corrected) %>% mutate(rank = rank(dplyr::desc(aupr_corrected)))
 ligand_activities
 ```
 
@@ -165,10 +180,13 @@ ligand_activities
 # top-ranked ligands
 best_upstream_ligands = ligand_activities %>% top_n(30, aupr_corrected) %>% arrange(-aupr_corrected) %>% pull(test_ligand) %>% unique()
 
+
 ```
 
 ```{r}
+## plot the top 30 genes for expressed ligands
 DotPlot(Sc_filtered, features = best_upstream_ligands %>% rev(), cols = "RdYlBu") + RotatedAxis()
+
 ```
 
 ## 5) Infer receptors and top-predicted target genes of ligands that are top-ranked in the ligand activity analysis
@@ -176,7 +194,7 @@ DotPlot(Sc_filtered, features = best_upstream_ligands %>% rev(), cols = "RdYlBu"
 ```{r}
 # Active target gene inference
 
-ctive_ligand_target_links_df = best_upstream_ligands %>% lapply(get_weighted_ligand_target_links,geneset = geneset_oi, ligand_target_matrix = ligand_target_matrix, n = 200) %>% bind_rows() %>% drop_na()
+active_ligand_target_links_df = best_upstream_ligands %>% lapply(get_weighted_ligand_target_links,geneset = geneset_oi, ligand_target_matrix = ligand_target_matrix, n = 200) %>% bind_rows() %>% drop_na()
 
 active_ligand_target_links = prepare_ligand_target_visualization(ligand_target_df = active_ligand_target_links_df, ligand_target_matrix = ligand_target_matrix, cutoff = 0.33)
 
@@ -231,7 +249,8 @@ p_ligand_receptor_network
 ```{r}
 # DE analysis for each sender cell type
 # this uses a new nichenetr function - reinstall nichenetr if necessary!
-DE_table_all = Idents(seuratObj) %>% levels() %>% intersect(sender_celltypes) %>% lapply(get_lfc_celltype, seurat_obj = seuratObj, condition_colname = "aggregate", condition_oi = condition_oi, condition_reference = condition_reference, expression_pct = 0.10, celltype_col = NULL) %>% reduce(full_join) # use this if cell type labels are the identities of your Seurat object -- if not: indicate the celltype_col properly
+
+DE_table_all = Idents(Sc_filtered) %>% levels() %>% intersect(sender_celltypes) %>% lapply(PrepSCTFindMarkers,Sc_filtered) %>% lapply(get_lfc_celltype, seurat_obj = Sc_filtered, condition_colname = "condition", condition_oi = condition_oi, condition_reference = condition_reference, expression_pct = 0.10, celltype_col = "cell_type_gen") %>% reduce(full_join) # use this if cell type labels are the identities of your Seurat object -- if not: indicate the celltype_col properly,recorrect_umi=FALSE
 DE_table_all[is.na(DE_table_all)] = 0
 
 # Combine ligand activities with DE information
@@ -273,7 +292,7 @@ p_ligand_aupr = vis_ligand_aupr %>% make_heatmap_ggplot("Prioritized ligands","L
 ```{r}
 # ligand expression Seurat dotplot
 order_ligands_adapted <- str_replace_all(order_ligands, "\\.", "-")
-rotated_dotplot = DotPlot(seuratObj %>% subset(celltype %in% sender_celltypes), features = order_ligands_adapted, cols = "RdYlBu") + coord_flip() + theme(legend.text = element_text(size = 10), legend.title = element_text(size = 12)) # flip of coordinates necessary because we want to show ligands in the rows when combining all plots
+rotated_dotplot = DotPlot(Sc_filtered %>% subset(celltype %in% sender_celltypes), features = order_ligands_adapted, cols = "RdYlBu") + coord_flip() + theme(legend.text = element_text(size = 10), legend.title = element_text(size = 12)) # flip of coordinates necessary because we want to show ligands in the rows when combining all plots
 ```
 
 ```{r}
