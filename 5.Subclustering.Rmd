@@ -23,7 +23,7 @@ library(presto)
 ```{r}
 object <- readRDS("SCT/intgr_indiv_SCT_harmony/data/annotated_intgr.rds")
 
-DimPlot(object, reduction = "umap", label = TRUE, shuffle = T, group.by = "cell_subtype")
+DimPlot(object, reduction = "umap", label = TRUE, shuffle = T, group.by = "cell_type")
 
 ```
 
@@ -1224,22 +1224,20 @@ da_Myelo_int_end %>%
   arrange(- SpatialFDR) %>%
   head() 
 
-write.csv(da_T_ctl_int, "T_da_ctlvsint.csv", row.names = FALSE)
-write.csv(da_T_int_end, "T_da_endvsint.csv", row.names = FALSE)
+write.csv(da_T_ctl_int, "SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/T_da_ctlvsint.csv", row.names = FALSE)
+write.csv(da_T_int_end, "SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/T_da_endvsint.csv", row.names = FALSE)
 
-write.csv(da_Myelo_ctl_int, "Myelo_da_ctlvsint.csv", row.names = FALSE)
-write.csv(da_Myelo_int_end, "Myelo_da_endvsint.csv", row.names = FALSE)
+write.csv(da_Myelo_ctl_int, "SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/Myelo_da_ctlvsint.csv", row.names = FALSE)
+write.csv(da_Myelo_int_end, "SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/Myelo_da_endvsint.csv", row.names = FALSE)
 
-write.csv(da_Ec_ctl_int, "Ec_da_ctlvsint.csv", row.names = FALSE)
-write.csv(da_Ec_int_end, "Ec_da_endvsint.csv", row.names = FALSE)
+write.csv(da_Ec_ctl_int, "SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/Ec_da_ctlvsint.csv", row.names = FALSE)
+write.csv(da_Ec_int_end, "SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/Ec_da_endvsint.csv", row.names = FALSE)
 ```
 
 ```{r}
 T_milo <- buildNhoodGraph(T_milo)
 Ec_milo <- buildNhoodGraph(Ec_milo)
 Myelo_milo <- buildNhoodGraph(Myelo_milo)
-
-
 ```
 
 ```{r}
@@ -1251,11 +1249,12 @@ T1 <- plotUMAP(T_milo, colour_by="cell_subtype", point_size=0.9,text_by = "cell_
 
 T2 <- plotUMAP(T_milo, colour_by="cell_subtype", point_size=0.9, text_by = "cell_subtype", text_size = 3.5) + plotNhoodGraphDA(T_milo, da_T_int_end, alpha=0.5) +
       plot_layout(guides="auto" )+
-      ggtitle("Intermediate vs End Tcells ")
+      ggtitle("Intermediate vs End")
+T1
+T2
 
-
-ggsave("Milo_T_ct_to_int.pdf", plot = T1, device = "pdf", dpi = 300, width = 10, height = 7)
-ggsave("Milo_T_int_to_end.pdf", plot = T2, device = "pdf", dpi = 300, width = 10, height = 7)
+ggsave("SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/Milo_T_ct_to_int.pdf", plot = T1, device = "pdf", dpi = 300, width = 10, height = 7)
+ggsave("SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/Milo_T_int_to_end.pdf", plot = T2, device = "pdf", dpi = 300, width = 10, height = 7)
 ```
 
 ```{r}
@@ -1265,10 +1264,12 @@ Ec1 <- plotUMAP(Ec_milo, colour_by="cell_subtype", point_size=0.9,text_by = "cel
 
 Ec2 <- plotUMAP(Ec_milo, colour_by="cell_subtype", point_size=0.9, text_by = "cell_subtype", text_size = 3.5) + plotNhoodGraphDA(Ec_milo, da_Ec_int_end, alpha=0.5) +
       plot_layout(guides="auto" )+
-      ggtitle("Intermediate vs End Ecs")
+      ggtitle("Intermediate vs End")
+Ec1
+Ec2
 
-ggsave("Milo_Ec_ct_to_int.pdf", plot = Ec1, device = "pdf", dpi = 300, width = 10, height = 7)
-ggsave("Milo_Ec_int_to_end.pdf", plot = Ec2, device = "pdf", dpi = 300, width = 10, height = 7)
+ggsave("SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/Milo_Ec_ctl_to_int.pdf", plot = Ec1, device = "pdf", dpi = 300, width = 13, height = 9)
+ggsave("SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/Milo_Ec_int_to_end.pdf", plot = Ec2, device = "pdf", dpi = 300, width = 13, height = 9)
 ```
 
 ```{r}
@@ -1278,17 +1279,17 @@ M1 <- plotUMAP(Myelo_milo, colour_by="cell_subtype", point_size=0.9,text_by = "c
 
 M2 <- plotUMAP(Myelo_milo, colour_by="cell_subtype", point_size=0.9, text_by = "cell_subtype", text_size = 3.5) + plotNhoodGraphDA(Myelo_milo, da_Myelo_int_end, alpha=0.5) +
       plot_layout(guides="auto" )+
-      ggtitle("Intermediate vs End Monocytes")
+      ggtitle("Intermediate vs End")
 
-ggsave("Milo_Mono_ct_to_int.pdf", plot = M1, device = "pdf", dpi = 300, width = 10, height = 7)
-ggsave("Milo_Mono_int_to_end.pdf", plot = M2, device = "pdf", dpi = 300, width = 10, height = 7)
+ggsave("SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/Milo_Mono_ct_to_int.pdf", plot = M1, device = "pdf", dpi = 300, width = 10, height = 9)
+ggsave("SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/Milo_Mono_int_to_end.pdf", plot = M2, device = "pdf", dpi = 300, width = 10, height = 9)
 ```
 
 ```{r}
-da_T_ctl_int <- annotateNhoods(T_milo, da_T_int_end, coldata_col = "cell_subtype")
+da_T_ctl_int <- annotateNhoods(T_milo, da_T_ctl_int, coldata_col = "cell_subtype")
 da_T_int_end <- annotateNhoods(T_milo, da_T_int_end, coldata_col = "cell_subtype")
 
-da_Ec_ctl_int <- annotateNhoods(Ec_milo, da_Ec_int_end, coldata_col = "cell_subtype")
+da_Ec_ctl_int <- annotateNhoods(Ec_milo, da_Ec_ctl_int, coldata_col = "cell_subtype")
 da_Ec_int_end <- annotateNhoods(Ec_milo, da_Ec_int_end, coldata_col = "cell_subtype")
 
 da_Myelo_ctl_int <- annotateNhoods(Myelo_milo, da_Myelo_ctl_int, coldata_col = "cell_subtype")
@@ -1304,28 +1305,36 @@ da_T_int_end$cell_subtype <- ifelse(da_T_int_end$cell_subtype_fraction < 0.7, "M
 da_Ec_ctl_int$cell_subtype <- ifelse(da_Ec_ctl_int$cell_subtype_fraction < 0.7, "Mixed", da_Ec_ctl_int$cell_subtype)
 da_Ec_int_end$cell_subtype <- ifelse(da_Ec_int_end$cell_subtype_fraction < 0.7, "Mixed", da_Ec_int_end$cell_subtype)
 
-da_Myelo_ctl_int$cell_subtype <- ifelse(da_Myelo_ctl_int$cell_subtype_fraction < 0.7, "Mixed", da_Ec_ctl_int$cell_subtype)
+da_Myelo_ctl_int$cell_subtype <- ifelse(da_Myelo_ctl_int$cell_subtype_fraction < 0.7, "Mixed", da_Myelo_ctl_int$cell_subtype)
 da_Myelo_int_end$cell_subtype <- ifelse(da_Myelo_int_end$cell_subtype_fraction < 0.7, "Mixed", da_Myelo_int_end$cell_subtype)
 
 ```
 
 ```{r}
 bee1 <- plotDAbeeswarm(da_T_ctl_int, group.by = "cell_subtype", alpha = 1)+ggtitle("Control to Pretumor")
-ggsave("T_ctl_to_int_beeswarm.pdf", plot = bee1, width = 7, height = 5, dpi = 300)
+bee1
+ggsave("SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/T_ctl_to_int_beeswarm.pdf", plot = bee1, width = 7, height = 5, dpi = 300)
+
+
 bee2 <- plotDAbeeswarm(da_T_int_end, group.by = "cell_subtype", alpha = 1)+ggtitle("Pretumor to Tumor")
-ggsave("T_int_to_end_beeswarm.pdf", plot = bee2, width = 7, height = 5, dpi = 300)
+bee2
+ggsave("SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/T_int_to_end_beeswarm.pdf", plot = bee2, width = 7, height = 5, dpi = 300)
 
 
 bee3 <- plotDAbeeswarm(da_Ec_ctl_int, group.by = "cell_subtype", alpha = 1)+ggtitle("Control to Pretumor")
-ggsave("Ec_ctl_to_int_beeswarm.pdf", plot = bee3, width = 7, height = 5, dpi = 300)
+
+ggsave("SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/Ec_ctl_to_int_beeswarm.pdf", plot = bee3, width = 7, height = 5, dpi = 300)
+
+
 bee4 <- plotDAbeeswarm(da_Ec_int_end, group.by = "cell_subtype", alpha = 1)+ggtitle("Pretumor to Tumor")
-ggsave("Ec_int_to_end_beeswarm.pdf", plot = bee4, width = 7, height = 5, dpi = 300)
+
+ggsave("SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/Ec_int_to_end_beeswarm.pdf", plot = bee4, width = 7, height = 5, dpi = 300)
 
 bee5 <- plotDAbeeswarm(da_Myelo_ctl_int, group.by = "cell_subtype", alpha = 1)+ggtitle("Control to Pretumor")
-ggsave("Myelo_ctl_to_int_beeswarm.pdf", plot = bee5, width = 7, height = 5, dpi = 300)
-bee6 <- plotDAbeeswarm(da_Myelo_int_end, group.by = "cell_subtype", alpha = 1)+ggtitle("Pretumor to Tumor")
-ggsave("Myelo_int_to_end_beeswarm.pdf", plot = bee6, width = 7, height = 5, dpi = 300)
+ggsave("SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/Myelo_ctl_to_int_beeswarm.pdf", plot = bee5, width = 7, height = 5, dpi = 300)
 
+bee6 <- plotDAbeeswarm(da_Myelo_int_end, group.by = "cell_subtype", alpha = 1)+ggtitle("Pretumor to Tumor")
+ggsave("SCT/intgr_indiv_SCT_harmony/Subclustering/miloR_DA_sub/Myelo_int_to_end_beeswarm.pdf", plot = bee6, width = 7, height = 5, dpi = 300)
 
 
 ```

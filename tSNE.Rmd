@@ -1,0 +1,47 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(Seurat)
+library(ArchR)
+```
+
+
+```{r}
+object <- readRDS(file="SCT/intgr_indiv_SCT_harmony/Subclustering/subcluster_annotated_RasV.rds")
+```
+
+
+
+```{r}
+object <-RunTSNE(
+  object,
+  reduction = "harmony",
+  assay="SCT",
+  dims = 1:50,
+  seed.use = 1,
+  tsne.method = "Rtsne",
+  dim.embed = 2,
+  reduction.key = "tSNE_"
+)
+```
+
+```{r}
+cols2<-ArchRPalettes[[1]] #Select the color palette you want from here https://bookdown.org/ytliu13207/SingleCellMultiOmicsDataAnalysis/color-palette.html
+names(cols2)<-names(table(object$celltype_wide))
+tsne<-DimPlot(object, cols = cols2[!is.na(names(cols2))],group.by = "celltype_wide", reduction = "tsne", shuffle = TRUE,order = c(10:1),label = T)
+ggsave("../plots/tSNE_cell_type_0.06.pdf", tsne,width = 10, height = 10)
+```
+
+```{r}
+tsne
+```
+
+
+```{r}
+tsne
+```
+

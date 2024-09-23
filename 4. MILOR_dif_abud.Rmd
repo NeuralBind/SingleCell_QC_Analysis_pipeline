@@ -131,9 +131,9 @@ da_results_ctl_end %>%
 ```
 
 ```{r}
-write.csv(da_results_ctl_int, "da_ctlvsint.csv", row.names = FALSE)
-write.csv(da_results_int_end, "da_endvsint.csv", row.names = FALSE)
-write.csv(da_results_ctl_end, "da_ctlvsend.csv", row.names = FALSE)
+write.csv(da_results_ctl_int, "SCT/intgr_indiv_SCT_harmony/Dif_Abudance_milo/da_ctlvsint.csv", row.names = FALSE)
+write.csv(da_results_int_end, "SCT/intgr_indiv_SCT_harmony/Dif_Abudance_milo/da_endvsint.csv", row.names = FALSE)
+write.csv(da_results_ctl_end, "SCT/intgr_indiv_SCT_harmony/Dif_Abudance_milo/da_ctlvsend.csv", row.names = FALSE)
 
 ```
 
@@ -158,19 +158,19 @@ p3 <- plotUMAP(rasv_milo, colour_by="cell_type", point_size=0.9, text_by = "cell
 This calculates a Fold-change and corrected P-value for each neighbourhood, which indicates whether there is significant differential abundance between condition
 
 ```{r}
-ggsave("intVSctl.pdf", plot = p1, width = 8, height = 6, dpi = 300)
+ggsave("SCT/intgr_indiv_SCT_harmony/Dif_Abudance_milo/intVSctl.pdf", plot = p1, width = 8, height = 6, dpi = 300)
 p1
 ```
 
 ```{r}
-ggsave("intVSend.pdf", plot = p2, width = 8, height = 6, dpi = 300)
+ggsave("SCT/intgr_indiv_SCT_harmony/Dif_Abudance_milo/intVSend.pdf", plot = p2, width = 8, height = 6, dpi = 300)
 
 p2
 ```
 
 
 ```{r}
-ggsave("endVSctl.pdf", plot = p3, width = 8, height = 6, dpi = 300)
+ggsave("SCT/intgr_indiv_SCT_harmony/Dif_Abudance_milo/endVSctl.pdf", plot = p3, width = 8, height = 6, dpi = 300)
 p3
 ```
 
@@ -193,11 +193,11 @@ da_results_ctl_end$cell_type <- ifelse(da_results_ctl_end$cell_type_fraction < 0
 
 ```{r}
 bee1 <- plotDAbeeswarm(da_results_ctl_int, group.by = "cell_type", alpha = 1)+ggtitle("Intermediate vs Control")
-ggsave("intVSctl_beeswarm.pdf", plot = bee1, width = 7, height = 5, dpi = 300)
+ggsave("SCT/intgr_indiv_SCT_harmony/Dif_Abudance_milo/intVSctl_beeswarm.pdf", plot = bee1, width = 7, height = 5, dpi = 300)
 bee2 <- plotDAbeeswarm(da_results_int_end, group.by = "cell_type", alpha = 1)+ggtitle("Intermediate vs End")
-ggsave("intVSend_beeswarm.pdf", plot = bee2, width = 7, height = 5, dpi = 300)
+ggsave("SCT/intgr_indiv_SCT_harmony/Dif_Abudance_milo/intVSend_beeswarm.pdf", plot = bee2, width = 7, height = 5, dpi = 300)
 bee3 <- plotDAbeeswarm(da_results_ctl_end, group.by = "cell_type", alpha = 1)+ggtitle("End vs Control")
-ggsave("endVSctl_beeswarm.pdf", plot = bee3, width = 7, height = 5, dpi = 300)
+ggsave("SCT/intgr_indiv_SCT_harmony/Dif_Abudance_milo/endVSctl_beeswarm.pdf", plot = bee3, width = 7, height = 5, dpi = 300)
 ```
 ```{r}
 bee1

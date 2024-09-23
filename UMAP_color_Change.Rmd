@@ -5,19 +5,68 @@ output: html_notebook
 
 ```{r}
 library(Seurat)
-librery(ArchR)
+library(ArchR)
+library(tidyverse)
 ```
 
 
 ```{r}
-seurat_obj <- enfnwln
+seurat_obj <- readRDS(file ="SCT/intgr_indiv_SCT_harmony/Subclustering/subcluster_annotated_RasV.rds")
+```
+
+```{r}
+Idents(seurat_obj) <- "cell_type"
 ```
 
 
 ```{r}
 cols2<-ArchRPalettes[[1]] #Select the color palette you want from here https://bookdown.org/ytliu13207/SingleCellMultiOmicsDataAnalysis/color-palette.html
-names(cols2)<-names(table(MycP53.combined$orig.ident)) #assign the same name from your varibles to the colors.. e.g. "Control"= "red", etc
-10:10
-DimPlot(MycP53.combined, cols = cols2[!is.na(names(cols2))],group.by = "orig.ident", reduction = "umap", shuffle = T)
+names(cols2)<-names(table(seurat_obj$SCT_snn_res.0.06)) #assign the same name from your varibles to the colors.. e.g. "Control"= "red", etc
+DimPlot(seurat_obj, cols = cols2[!is.na(names(cols2))],group.by = "SCT_snn_res.0.06", reduction = "umap", shuffle = TRUE,order = c(10:1))
+#ggsave("../plots/UMAP_SCT_snn_res.0.06.pdf", width = 10, height = 10)
+```
+
+```{r}
+seurat_obj@meta.data$cell_type[which(seurat_obj@meta.data$cell_type == "plasm/?")] <- "Plasm"
+
+SaveSeuratRds(seurat_obj, file = "SCT/intgr_indiv_SCT_harmony/Subclustering/subcluster_annotated_RasV.rds")
+
+seurat_obj@meta.data$cell_type[which(my.seuObj@meta.data$sample == "treatment")] <- "B"
+```
+
+```{r}
+
+names(cols2)<-names(table(seurat_obj$cell_type)) #assign the same name from your varibles to the colors.. e.g. "Control"= "red", etc
+
+DimPlot(seurat_obj, cols = cols2[!is.na(names(cols2))],group.by = "cell_type", reduction = "umap", shuffle = TRUE, label = TRUE)
+ggsave("../plots/UMAP_SCT_snn_res.0.06_celltype.pdf", width = 10, height = 10)
+```
+
+```{r}
+cols2<-ArchRPalettes[["R4"]]
+names(cols2)<-names(table(seurat_obj$cell_subtype)) #assign the same name from your varibles to the colors.. e.g. "Control"= "red", etc
+
+DimPlot(seurat_obj, cols = cols2[!is.na(names(cols2))],group.by = "cell_subtype", reduction = "umap", shuffle = TRUE, label = F)
+ggsave("../plots/UMAP_subtype.pdf", width = 10, height = 10)
+```
+
+```{r}
+VlnPlot(
+  seurat_obj,
+  features = c("Alb","Afp"),
+  cols = NULL,
+  pt.size = NULL,
+  alpha = 1,
+  idents = NULL,
+  assay = "SCT",
+  group.by = "cell_type",
+  split.by = "condition"
+)
+ggsave("../plots/Alb_violin.pdf", width = 10, height = 10)
+```
+
+```{r}
+FeaturePlot(seurat_obj, features = c("Afp","Alb"))
+ggsave("../plots/Afp_featureplot.pdf", width = 10, height = 10)
 ```
 
