@@ -20,7 +20,7 @@ This repository provides a complete workflow for analyzing single-cell RNA-seq d
 
 ### 1. Quality Control & Preprocessing
 - **`1.QC_DoubletF_Log1p.qmd`** - QC pipeline with doublet filtering and log1p normalization
-- **`1.QC_DoubletF_SCT.qmd`** - Alternative QC using SCTransform normalization
+- **`1.QC_DoubletF_SCT.qmd`** - Alternative QC using SCTransform normalization and doubletFinder
 - **`basic_analysis_steps_MISC.Rmd`** - Additional QC utilities and helper functions
 
 ### 2. Data Integration
@@ -37,7 +37,6 @@ This repository provides a complete workflow for analyzing single-cell RNA-seq d
 
 ### 4. Differential Abundance Analysis
 - **`4. MILOR_dif_abud.Rmd`** - MILOR-based differential abundance testing
-- **`MILOR_dif_abud.Rmd`** - Additional MILOR analysis scripts
 
 ### 5. Subclustering & Advanced Analysis
 - **`5.Subclustering.Rmd`** - Detailed subclustering of cell populations
